@@ -9,6 +9,9 @@ authors = [
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+needle = ["cactus-needle==2.0.12"]
+
 [dependency-groups]
 dev = [
 	"pytest",

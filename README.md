@@ -1,8 +1,9 @@
 # Offline assistant
 
-Initial Python foundation for an offline Android voice assistant. This milestone
-only demonstrates a mocked flashlight, with no runtime dependencies, network
-access, microphone access, speech recognition, or model downloads.
+Python foundation for an offline Android voice assistant. The default demo uses
+a mocked flashlight without runtime dependencies. An optional Needle 2 adapter
+turns typed commands into validated tool-call proposals. Microphone capture and
+Vosk are not implemented yet.
 
 ## Run on PC / WSL
 
@@ -44,6 +45,9 @@ The repository's existing `src/` layout is retained:
 src/
   offline_assistant/main.py  # Demo and console entry point
   assistant/config.py       # Explicit desktop mock factory
+  assistant/brain.py        # Optional Needle adapter; proposals only
+  assistant/tool_calls.py   # Model-independent structured requests
+  assistant/executor.py     # Validation and allowlisted dispatch
   platform_api/base.py      # Platform contract: flashlight(bool)
   platform_api/desktop.py   # In-memory mock with observable state
   platform_api/android.py   # Existing Termux torch adapter
@@ -62,11 +66,46 @@ even in Termux, the demo uses the desktop mock. Real Android behavior is not
 validated in this milestone. A future Android integration will require Termux:API
 setup and device testing.
 
-The remaining empty modules are placeholders from the original scaffold. Vosk,
-Needle, a dispatcher, and other tools are not implemented. Future speech recognition
-and tool selection should feed a separate execution layer, with confirmation and
-authorization before dangerous operations such as calls or SMS. Model selection
-must not itself execute actions. Cached-model offline behavior remains future work.
+The remaining empty modules are placeholders from the original scaffold. Future
+Vosk transcription can feed the same brain interface. Calls, SMS, and other tools
+are not supported; they require a confirmation and authorization layer before
+being added to the executor.
+
+## Typed commands with Needle 2
+
+Install the optional runtime and explicitly download its engine while connected:
+
+```sh
+uv sync --python 3.12 --extra needle
+NEEDLE_TELEMETRY=0 uv run --python 3.12 --extra needle needle fetch --generation 2
+```
+
+Then run the installed application directly (no package resolution at runtime):
+
+```sh
+.venv/bin/offline-assistant "turn on the flashlight"
+.venv/bin/offline-assistant "turn on the flashlight" --execute-mock
+```
+
+The first command prints proposed calls without execution. The second applies
+them to a fresh desktop mock. No Android platform is selected by this CLI.
+Needle receives JSON schemas, not executable tool functions, and uses `complete()`.
+The executor independently checks every proposed call before any call is executed.
+Unknown tools, extra arguments, and non-boolean flashlight states are rejected.
+Device failures propagate; already executed actions are not rolled back.
+
+Each input starts a fresh model conversation. Empty proposals do nothing.
+Nonempty proposals require a numeric confidence of at least 0.8; this initial
+threshold needs evaluation on real command examples and is not authorization.
+Failed or malformed responses exit with an error.
+
+The adapter sets `HF_HUB_OFFLINE=1` and `NEEDLE_TELEMETRY=0` before loading Needle,
+disabling downloads and SDK usage telemetry during commands. A missing engine
+fails with a setup error. The engine cache is outside Git;
+see the upstream [offline setup documentation](https://github.com/cactus-compute/needle/blob/main/doc/apis.md#offline-devices)
+for cache locations and library overrides. A PC engine binary is not portable to
+Android. Native Termux compatibility and on-device inference still need validation.
+The regular pytest suite uses fake Needle responses and requires no model or network.
 
 Commit source, `pyproject.toml`, and `uv.lock`; virtual environments and downloaded
 models are ignored. Keep future models under `models/` and download them separately
