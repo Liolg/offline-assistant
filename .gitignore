@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Downloaded offline speech/language models and archives
+models/
+vosk-model*/
+vosk-model*.zip
