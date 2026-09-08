@@ -257,6 +257,10 @@ python scripts/install_vosk_termux.py
 If `.venv` already exists, just activate it instead of creating it again. The
 helper installs/reinstalls Vosk and its Python dependencies in that environment.
 It refuses to run outside an active virtual environment or outside ARM64 Termux.
+Downloads use a 30-second socket timeout and up to three attempts per file.
+Completed archives are checked for corruption and cached in
+`~/.cache/offline-assistant/vosk/0.3.45/`. If the connection drops, rerun the same
+installer command: completed files are reused; interrupted files restart.
 Expected final import output: `Vosk import OK`. After reopening Termux, activate
 the same environment before running the assistant or checking the import:
 

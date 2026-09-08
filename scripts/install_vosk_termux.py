@@ -8,11 +8,15 @@ import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
+import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from urllib.request import urlretrieve
-from zipfile import ZIP_DEFLATED, ZipFile
+import time
+from urllib.error import URLError
+from urllib.request import urlopen
+from http.client import HTTPException
+from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
 
 VERSION = "0.3.45"
@@ -20,6 +24,49 @@ RELEASE = f"https://github.com/alphacep/vosk-api/releases/download/v{VERSION}"
 PYTHON_WHEEL = f"vosk-{VERSION}-py3-none-manylinux2014_aarch64.whl"
 ANDROID_ARCHIVE = f"vosk-android-{VERSION}.zip"
 DIST_INFO = f"vosk-{VERSION}.dist-info"
+
+
+def validate_archive(path: Path) -> None:
+    """Reject incomplete archives before caching or installing them."""
+    with ZipFile(path) as archive:
+        if archive.testzip() is not None:
+            raise BadZipFile("Archive checksum failed")
+
+
+def download_release(filename: str, cache: Path) -> Path:
+    """Retry interrupted transfers and reuse verified, completed downloads."""
+    cache.mkdir(parents=True, exist_ok=True)
+    target = cache / filename
+    if target.exists():
+        try:
+            validate_archive(target)
+        except (BadZipFile, EOFError):
+            target.unlink()
+        else:
+            print(f"Using cached release: {filename}", flush=True)
+            return target
+    partial = target.with_name(target.name + ".part")
+    for attempt in range(1, 4):
+        print(f"Downloading official Vosk release ({attempt}/3): {filename}", flush=True)
+        try:
+            with urlopen(f"{RELEASE}/{filename}", timeout=30) as response:
+                with partial.open("wb") as destination:
+                    shutil.copyfileobj(response, destination)
+            validate_archive(partial)
+            partial.replace(target)
+            return target
+        except (OSError, URLError, HTTPException, BadZipFile, EOFError) as error:
+            if attempt == 3:
+                raise SystemExit(
+                    f"Download failed: {filename}: {error}\n"
+                    "Check your connection and rerun this command. "
+                    f"Completed downloads are kept in {cache}."
+                ) from error
+            print(f"Download interrupted: {error}. Retrying...", flush=True)
+            time.sleep(attempt * 2)
+        finally:
+            partial.unlink(missing_ok=True)
+    raise AssertionError("Unreachable")
 
 
 def build_wheel(python_wheel: Path, android_archive: Path, output: Path, tag: str) -> Path:
@@ -78,12 +125,12 @@ def main() -> None:
                 and "musllinux" not in item.platform), None)
     if tag is None:
         raise SystemExit("Could not determine the native Termux wheel tag.")
+    cache = Path.home() / ".cache" / "offline-assistant" / "vosk" / VERSION
+    python_wheel = download_release(PYTHON_WHEEL, cache)
+    android_archive = download_release(ANDROID_ARCHIVE, cache)
     with TemporaryDirectory(prefix="vosk-termux-") as directory:
         work = Path(directory)
-        for filename in (PYTHON_WHEEL, ANDROID_ARCHIVE):
-            print(f"Downloading official Vosk release: {filename}", flush=True)
-            urlretrieve(f"{RELEASE}/{filename}", work / filename)
-        wheel = build_wheel(work / PYTHON_WHEEL, work / ANDROID_ARCHIVE, work, tag)
+        wheel = build_wheel(python_wheel, android_archive, work, tag)
         subprocess.run([sys.executable, "-m", "pip", "install", "--force-reinstall", str(wheel)], check=True)
         subprocess.run([sys.executable, "-c", "import vosk; print('Vosk import OK')"], check=True)
     print("Runtime installed. English and Spanish models are separate downloads.")

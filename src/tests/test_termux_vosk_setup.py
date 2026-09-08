@@ -75,3 +75,65 @@ def test_installer_requires_virtual_environment(monkeypatch):
     monkeypatch.setattr(setup.sys, "prefix", setup.sys.base_prefix)
     with pytest.raises(SystemExit, match="virtual environment"):
         setup.main()
+
+
+def test_download_retries_connection_reset_and_reuses_cache(tmp_path, monkeypatch):
+    wheel, _, _ = archives(tmp_path)
+    payload = wheel.read_bytes()
+    requests = []
+
+    class InterruptedResponse(io.BytesIO):
+        def read(self, size=-1):
+            if self.tell():
+                raise ConnectionResetError(104, "Connection reset by peer")
+            return super().read(10)
+
+    def open_url(url, *, timeout):
+        requests.append((url, timeout))
+        if len(requests) == 1:
+            return InterruptedResponse(payload)
+        return io.BytesIO(payload)
+
+    monkeypatch.setattr(setup, "urlopen", open_url)
+    monkeypatch.setattr(setup.time, "sleep", lambda seconds: None)
+    cache = tmp_path / "cache"
+    result = setup.download_release(setup.PYTHON_WHEEL, cache)
+    assert result.read_bytes() == payload
+    assert len(requests) == 2
+    assert setup.download_release(setup.PYTHON_WHEEL, cache) == result
+    assert len(requests) == 2
+    assert not list(cache.glob("*.part"))
+
+
+def test_failed_download_keeps_completed_files(tmp_path, monkeypatch):
+    wheel, _, _ = archives(tmp_path)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    completed = cache / setup.PYTHON_WHEEL
+    completed.write_bytes(wheel.read_bytes())
+    requests = []
+
+    def open_url(url, *, timeout):
+        requests.append(url)
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(setup, "urlopen", open_url)
+    monkeypatch.setattr(setup.time, "sleep", lambda seconds: None)
+    with pytest.raises(SystemExit, match="Completed downloads are kept"):
+        setup.download_release(setup.ANDROID_ARCHIVE, cache)
+    assert len(requests) == 3
+    assert completed.read_bytes() == wheel.read_bytes()
+    assert not (cache / setup.ANDROID_ARCHIVE).exists()
+    assert not list(cache.glob("*.part"))
+
+
+def test_corrupt_cache_and_incomplete_response_are_redownloaded(tmp_path, monkeypatch):
+    wheel, _, _ = archives(tmp_path)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / setup.PYTHON_WHEEL).write_bytes(b"broken cached archive")
+    responses = iter([b"truncated transfer", wheel.read_bytes()])
+    monkeypatch.setattr(setup, "urlopen", lambda url, timeout: io.BytesIO(next(responses)))
+    monkeypatch.setattr(setup.time, "sleep", lambda seconds: None)
+    result = setup.download_release(setup.PYTHON_WHEEL, cache)
+    assert result.read_bytes() == wheel.read_bytes()
