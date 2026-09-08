@@ -2,6 +2,8 @@ import argparse
 import json
 import subprocess
 from dataclasses import asdict
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from assistant.brain import Brain, NeedleBrain
 from assistant.config import create_platform
@@ -20,8 +22,11 @@ def main(
     """Preview typed tool calls, or explicitly execute them on a chosen platform."""
     parser = argparse.ArgumentParser(description="Offline typed or recorded flashlight commands")
     parser.add_argument("command", nargs="?", help="A quoted natural-language command")
-    parser.add_argument("--audio", help="Local mono, 16-bit, 16000 Hz PCM WAV recording")
-    parser.add_argument("--language", choices=["en", "es"], help="Recording language (required with --audio)")
+    audio_input = parser.add_mutually_exclusive_group()
+    audio_input.add_argument("--audio", help="Local mono, 16-bit, 16000 Hz PCM WAV recording")
+    audio_input.add_argument("--record", action="store_true", help="Record a command using the selected platform")
+    parser.add_argument("--seconds", type=int, help="Recording duration, 1–30 seconds (default: 8)")
+    parser.add_argument("--language", choices=["en", "es"], help="Recording language (required with --audio or --record)")
     parser.add_argument("--models-dir", help="Vosk model parent directory (default: models)")
     parser.add_argument("--transcribe-only", action="store_true", help="Print the transcript without loading Needle")
     parser.add_argument("--platform", choices=["desktop", "android"], default="desktop")
@@ -32,40 +37,53 @@ def main(
         "--execute-mock", action="store_true", help="Execute validated calls on DesktopPlatform"
     )
     args = parser.parse_args(argv)
-    if args.audio and args.command is not None:
-        parser.error("Choose either a typed command or --audio")
-    if args.audio and not args.language:
-        parser.error("--audio requires --language en or es")
-    if not args.audio and (args.language or args.models_dir or args.transcribe_only):
-        parser.error("Language, model, and transcription options require --audio")
+    has_audio = args.audio or args.record
+    if has_audio and args.command is not None:
+        parser.error("Choose a typed command, --audio, or --record")
+    if has_audio and not args.language:
+        parser.error("--audio and --record require --language en or es")
+    if args.seconds is not None and (not args.record or not 1 <= args.seconds <= 30):
+        parser.error("--seconds requires --record and must be from 1 to 30")
+    if not has_audio and (args.language or args.models_dir or args.transcribe_only):
+        parser.error("Language, model, and transcription options require --audio or --record")
     if args.transcribe_only and (
-        args.execute or args.execute_mock or args.needle_bin or args.platform != "desktop"
+        args.execute or args.execute_mock or args.needle_bin or (args.platform != "desktop" and not args.record)
     ):
         parser.error("--transcribe-only cannot be combined with engine, platform, or execution options")
     if args.execute_mock and args.platform != "desktop":
         parser.error("--execute-mock requires --platform desktop")
-    if args.command is None and not args.audio and (
+    if args.command is None and not has_audio and (
         args.execute or args.execute_mock or args.needle_bin or args.platform != "desktop"
     ):
         parser.error("Platform, engine, and execution options require a command")
-    if args.audio:
-        try:
-            voice = transcriber if transcriber is not None else VoskTranscriber(args.models_dir or "models")
-            args.command = voice.transcribe(args.audio, args.language).strip()
-        except (ValueError, RuntimeError, OSError) as exc:
-            parser.exit(1, f"Error: {exc}\n")
-        print(f"Transcript ({args.language}): {args.command}")
-        if not args.command:
-            print("No speech recognized; no action proposed.")
-            return
-        if args.transcribe_only:
-            return
     if args.platform == "android":
         from platform_api.android import AndroidPlatform
 
         platform = AndroidPlatform()
     else:
         platform = create_platform()
+    if has_audio:
+        try:
+            voice = transcriber if transcriber is not None else VoskTranscriber(args.models_dir or "models")
+            if args.record:
+                with TemporaryDirectory(prefix="assistant-voice-") as directory:
+                    recording = Path(directory) / "command.wav"
+                    if args.platform == "desktop":
+                        print("[MOCK] Generating silent audio; desktop recording does not use a microphone.")
+                    platform.record_audio(recording, args.seconds or 8)
+                    args.command = voice.transcribe(str(recording), args.language).strip()
+            else:
+                args.command = voice.transcribe(args.audio, args.language).strip()
+        except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
+            parser.exit(1, f"Error: {exc}\n")
+        except KeyboardInterrupt:
+            parser.exit(130, "Recording cancelled; no action executed.\n")
+        print(f"Transcript ({args.language}): {args.command}")
+        if not args.command:
+            print("No speech recognized; no action proposed.")
+            return
+        if args.transcribe_only:
+            return
     if args.command is not None:
         executor = Executor(platform)
         try:

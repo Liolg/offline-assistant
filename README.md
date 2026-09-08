@@ -163,6 +163,47 @@ models are ignored. Keep future models under `models/` and download them separat
 on each device. Clone/pull the source in Termux and create an environment there;
 do not copy the PC virtual environment to Android.
 
+## Record and process a command
+
+After setting up Termux:API, FFmpeg (`pkg install ffmpeg`), Vosk, both local
+language models, and the native Needle executable, record and preview in one command:
+
+```sh
+cd ~/offline-assistant
+source .venv/bin/activate
+PYTHONPATH=src python -m offline_assistant.main \
+  --record --language es --platform android \
+  --needle-bin models/needle/needle
+```
+
+Allow Termux:API microphone permission if requested. Speak after the
+`Recording ... Speak now.` message. The command records for eight seconds,
+waits for completion, converts the audio locally, prints the transcript, and
+previews Needle's proposed tool calls. Add `--execute` to execute validated
+actions. Each invocation makes a new recording. Use `--language en` for English
+or `--seconds 5` to change the recording duration (1–30 seconds).
+
+To check recognition without loading Needle:
+
+```sh
+PYTHONPATH=src python -m offline_assistant.main \
+  --record --language es --platform android --transcribe-only
+```
+
+Recording and conversion use temporary files that are removed after transcription
+or failure. Existing recordings are not overwritten. An active microphone session
+blocks a new recording. Recording, conversion, or transcription errors prevent
+tool execution; silence produces no proposal. Ctrl+C during recording attempts
+to stop the recorder and exits without executing an action.
+
+`Platform.record_audio()` returns a completed mono, 16-bit, 16 kHz WAV.
+`AndroidPlatform` owns the Termux recording and FFmpeg commands; the CLI manages
+temporary files and passes the result to the existing transcriber and brain.
+Desktop remains the default: `--record` on desktop generates silent WAV audio
+without accessing a microphone or waiting. Tests inject a mock transcriber and
+brain to exercise the complete flow without models, downloads, or hardware.
+Phone validation of this automated flow remains separate from the passing PC tests.
+
 ## English and Spanish recordings
 
 On PC/WSL, install the optional speech runtime (add `--extra needle` if using the
