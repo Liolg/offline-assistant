@@ -256,6 +256,10 @@ python scripts/install_vosk_termux.py
 
 If `.venv` already exists, just activate it instead of creating it again. The
 helper installs/reinstalls Vosk and its Python dependencies in that environment.
+It also patches Vosk's platform check to accept `android` (reported by Python
+3.13+) and load the bundled Android `libvosk.so`. If an earlier installation
+failed with `TypeError: Unsupported platform`, pull the latest code and rerun
+the helper with the same virtual environment active.
 It refuses to run outside an active virtual environment or outside ARM64 Termux.
 Downloads use a 30-second socket timeout and up to three attempts per file.
 Completed archives are checked for corruption and cached in

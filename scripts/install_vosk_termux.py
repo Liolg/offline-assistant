@@ -59,7 +59,7 @@ def download_release(filename: str, cache: Path) -> Path:
             if attempt == 3:
                 raise SystemExit(
                     f"Download failed: {filename}: {error}\n"
-                    "Check your connection and rerun this command. "
+                    "The transfer failed; rerun this command or download the archive with curl. "
                     f"Completed downloads are kept in {cache}."
                 ) from error
             print(f"Download interrupted: {error}. Retrying...", flush=True)
@@ -70,7 +70,7 @@ def download_release(filename: str, cache: Path) -> Path:
 
 
 def build_wheel(python_wheel: Path, android_archive: Path, output: Path, tag: str) -> Path:
-    """Replace the Linux library, retag the wheel, and regenerate its RECORD."""
+    """Adapt the native library and platform loader, then regenerate wheel metadata."""
     if not re.fullmatch(r"py3-none-[a-zA-Z0-9_]+", tag):
         raise ValueError("Invalid wheel tag")
     with ZipFile(python_wheel) as source:
@@ -90,6 +90,15 @@ def build_wheel(python_wheel: Path, android_archive: Path, output: Path, tag: st
     if native[:6] != b"\x7fELF\x02\x01" or int.from_bytes(native[18:20], "little") != 183:
         raise ValueError("Android library is not a little-endian ARM64 ELF binary")
     files["vosk/libvosk.so"] = native
+    bindings_path = "vosk/__init__.py"
+    bindings = files.get(bindings_path, b"")
+    linux_branch = b'elif sys.platform == "linux":'
+    if bindings.count(linux_branch) != 1:
+        raise ValueError("Unexpected Vosk platform loader; cannot apply Android compatibility fix")
+    # Python 3.13+ identifies Android separately; both platforms load libvosk.so.
+    files[bindings_path] = bindings.replace(
+        linux_branch, b'elif sys.platform in ("linux", "android"):'
+    )
     metadata = files[f"{DIST_INFO}/WHEEL"].decode("utf-8")
     lines = [line for line in metadata.splitlines() if not line.startswith("Tag:")]
     files[f"{DIST_INFO}/WHEEL"] = ("\n".join(lines) + f"\nTag: {tag}\n").encode()

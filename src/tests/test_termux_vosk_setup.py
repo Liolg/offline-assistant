@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 from pathlib import Path
+from types import SimpleNamespace
 from zipfile import ZipFile
 
 import pytest
@@ -15,12 +16,21 @@ spec = importlib.util.spec_from_file_location(
 setup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(setup)
 
+LOADER = '''def open_dll():
+    if sys.platform == "win32":
+        return _ffi.dlopen("libvosk.dll")
+    elif sys.platform == "linux":
+        return _ffi.dlopen("libvosk.so")
+    else:
+        raise TypeError("Unsupported platform")
+'''
+
 
 def archives(tmp_path, *, native=None, name="arm64-v8a/libvosk.so"):
     wheel, android = tmp_path / "bindings.whl", tmp_path / "android.zip"
     with ZipFile(wheel, "w") as archive:
         archive.writestr("vosk/libvosk.so", b"linux binary")
-        archive.writestr("vosk/__init__.py", "# bindings\n")
+        archive.writestr("vosk/__init__.py", LOADER)
         archive.writestr(f"{setup.DIST_INFO}/WHEEL", "Wheel-Version: 1.0\nTag: py3-none-manylinux2014_aarch64\n")
         archive.writestr(f"{setup.DIST_INFO}/RECORD", "stale record")
     if native is None:
@@ -36,7 +46,9 @@ def test_repackages_android_library_and_recomputes_every_hash(tmp_path):
     assert result.name == "vosk-0.3.45-py3-none-linux_aarch64.whl"
     with ZipFile(result) as archive:
         assert archive.read("vosk/libvosk.so") == native
-        assert archive.read("vosk/__init__.py") == b"# bindings\n"
+        assert archive.read("vosk/__init__.py").decode() == LOADER.replace(
+            'elif sys.platform == "linux":', 'elif sys.platform in ("linux", "android"):'
+        )
         metadata = archive.read(f"{setup.DIST_INFO}/WHEEL").decode()
         assert "manylinux" not in metadata
         assert "Tag: py3-none-linux_aarch64" in metadata
@@ -48,6 +60,32 @@ def test_repackages_android_library_and_recomputes_every_hash(tmp_path):
             expected = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
             assert digest == f"sha256={expected}"
         assert rows[-1] == [f"{setup.DIST_INFO}/RECORD", "", ""]
+
+
+@pytest.mark.parametrize("platform_name", ["android", "linux"])
+def test_packaged_loader_loads_shared_library_without_changing_platform(tmp_path, platform_name):
+    wheel, android, _ = archives(tmp_path)
+    result = setup.build_wheel(wheel, android, tmp_path / "out", "py3-none-linux_aarch64")
+    fake_sys = SimpleNamespace(platform=platform_name)
+    loaded = []
+    namespace = {"sys": fake_sys, "_ffi": SimpleNamespace(dlopen=loaded.append)}
+    with ZipFile(result) as archive:
+        exec(archive.read("vosk/__init__.py"), namespace)
+    namespace["open_dll"]()
+    assert loaded == ["libvosk.so"]
+    assert fake_sys.platform == platform_name
+
+
+def test_rejects_unexpected_platform_loader(tmp_path):
+    wheel, android, _ = archives(tmp_path)
+    with ZipFile(wheel) as source:
+        files = {name: source.read(name) for name in source.namelist()}
+    files["vosk/__init__.py"] = b"# unexpected bindings"
+    with ZipFile(wheel, "w") as target:
+        for name, data in files.items():
+            target.writestr(name, data)
+    with pytest.raises(ValueError, match="Unexpected Vosk platform loader"):
+        setup.build_wheel(wheel, android, tmp_path / "out", "py3-none-linux_aarch64")
 
 
 @pytest.mark.parametrize("native", [b"", b"not an ELF", b"\x7fELF\x02\x01" + bytes(14)])
