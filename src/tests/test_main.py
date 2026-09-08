@@ -46,3 +46,42 @@ def test_entire_proposal_is_validated_before_execution(monkeypatch, capsys):
     assert error.value.code == 1
     assert platform.flashlight_enabled is False
     assert "Unsupported tool" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("execute", [False, True])
+def test_android_requires_explicit_execution(monkeypatch, capsys, execute):
+    from platform_api.base import Platform
+
+    platform = Mock(spec=Platform)
+    monkeypatch.setattr("platform_api.android.AndroidPlatform", lambda: platform)
+    brain = Mock()
+    brain.propose.return_value = [ToolCall("flashlight", {"enabled": True})]
+    main(["on", "--platform", "android"] + (["--execute"] if execute else []), brain=brain)
+    if execute:
+        platform.flashlight.assert_called_once_with(True)
+        assert "[ANDROID] flashlight: on" in capsys.readouterr().out
+    else:
+        platform.flashlight.assert_not_called()
+
+
+@pytest.mark.parametrize("args", [
+    ["on", "--platform", "android", "--execute-mock"],
+    ["--platform", "android"], ["--execute"], ["--needle-bin", "needle"],
+])
+def test_ambiguous_execution_options_are_rejected(args):
+    with pytest.raises(SystemExit) as error:
+        main(args)
+    assert error.value.code == 2
+
+
+def test_cli_native_engine_selection(monkeypatch, capsys):
+    client = Mock()
+    client.complete.return_value = {
+        "type": "call", "success": True, "confidence": 1,
+        "function_calls": [{"name": "flashlight", "arguments": {"enabled": False}}],
+    }
+    factory = Mock(return_value=client)
+    monkeypatch.setattr("offline_assistant.main.NativeNeedleClient", factory)
+    main(["off", "--needle-bin", "models/needle/needle", "--execute"])
+    factory.assert_called_once_with("models/needle/needle")
+    assert "[MOCK] flashlight: off" in capsys.readouterr().out

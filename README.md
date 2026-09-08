@@ -46,6 +46,7 @@ src/
   offline_assistant/main.py  # Demo and console entry point
   assistant/config.py       # Explicit desktop mock factory
   assistant/brain.py        # Optional Needle adapter; proposals only
+  assistant/native_needle.py # Local executable adapter; no SDK required
   assistant/tool_calls.py   # Model-independent structured requests
   assistant/executor.py     # Validation and allowlisted dispatch
   platform_api/base.py      # Platform contract: flashlight(bool)
@@ -62,9 +63,11 @@ are rejected before dispatch, and platform errors propagate to the caller.
 
 The existing Android torch adapter implements the same interface and invokes
 `termux-torch` via a subprocess argument list. It is never selected automatically;
-even in Termux, the demo uses the desktop mock. Real Android behavior is not
-validated in this milestone. A future Android integration will require Termux:API
-setup and device testing.
+even in Termux, the demo uses the desktop mock. Select Android explicitly with
+`--platform android` and enable execution with `--execute`. The manual native
+Needle → Python → Termux:API test was reported successful offline on an ARM64
+Android 14 phone with Python 3.14.6. The integrated CLI has PC mock coverage;
+verify it on your phone after pulling changes.
 
 The remaining empty modules are placeholders from the original scaffold. Future
 Vosk transcription can feed the same brain interface. Calls, SMS, and other tools
@@ -88,7 +91,7 @@ Then run the installed application directly (no package resolution at runtime):
 ```
 
 The first command prints proposed calls without execution. The second applies
-them to a fresh desktop mock. No Android platform is selected by this CLI.
+them to a fresh desktop mock. Desktop remains the default platform.
 Needle receives JSON schemas, not executable tool functions, and uses `complete()`.
 The executor independently checks every proposed call before any call is executed.
 Unknown tools, extra arguments, and non-boolean flashlight states are rejected.
@@ -104,8 +107,55 @@ disabling downloads and SDK usage telemetry during commands. A missing engine
 fails with a setup error. The engine cache is outside Git;
 see the upstream [offline setup documentation](https://github.com/cactus-compute/needle/blob/main/doc/apis.md#offline-devices)
 for cache locations and library overrides. A PC engine binary is not portable to
-Android. Native Termux compatibility and on-device inference still need validation.
+Android. Use the Android executable path below for native Termux.
 The regular pytest suite uses fake Needle responses and requires no model or network.
+
+## Native Needle in Termux
+
+Install Termux and the Termux:API Android app from the same source, then install
+the command-line packages. Update packages together before adding dependencies:
+
+```sh
+apt update
+apt full-upgrade
+apt install python curl termux-api
+```
+
+From the repository root, download the official Android ARM64 executable once:
+
+```sh
+mkdir -p models/needle
+curl -fL --retry 3 \
+  https://huggingface.co/Cactus-Compute/needle2/resolve/main/android-arm64/needle \
+  -o models/needle/needle
+chmod +x models/needle/needle
+```
+
+Preview a proposed call (no Python SDK installation needed):
+
+```sh
+PYTHONPATH=src python -m offline_assistant.main "turn on the flashlight" \
+  --needle-bin models/needle/needle --platform android
+```
+
+Add `--execute` to control the phone:
+
+```sh
+PYTHONPATH=src python -m offline_assistant.main "turn on the flashlight" \
+  --needle-bin models/needle/needle --platform android --execute
+PYTHONPATH=src python -m offline_assistant.main "turn off the flashlight" \
+  --needle-bin models/needle/needle --platform android --execute
+```
+
+The light remains in its requested state; there is no automatic shutoff. You can
+also run `termux-torch off` directly. Repeat these commands with Wi-Fi and mobile
+data disabled to verify offline operation.
+
+The native adapter starts a process for each command, writes the current schema
+to a temporary file, and removes it afterward. No manually maintained `tools.json`
+is needed. Inference has a 30-second timeout; Android torch commands have a
+10-second timeout. `--execute-mock` is retained for desktop use and is rejected
+with `--platform android`.
 
 Commit source, `pyproject.toml`, and `uv.lock`; virtual environments and downloaded
 models are ignored. Keep future models under `models/` and download them separately

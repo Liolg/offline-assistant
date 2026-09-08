@@ -15,4 +15,5 @@ class AndroidPlatform(Platform):
                 "on" if enabled else "off",
             ],
             check=True,
+            timeout=10,
         )
