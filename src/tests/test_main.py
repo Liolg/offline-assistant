@@ -85,3 +85,53 @@ def test_cli_native_engine_selection(monkeypatch, capsys):
     main(["off", "--needle-bin", "models/needle/needle", "--execute"])
     factory.assert_called_once_with("models/needle/needle")
     assert "[MOCK] flashlight: off" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("language, text", [("en", "turn on the flashlight"), ("es", "enciende la linterna")])
+@pytest.mark.parametrize("execute", [False, True])
+def test_audio_flows_to_brain_with_explicit_execution(monkeypatch, capsys, language, text, execute):
+    platform = DesktopPlatform()
+    monkeypatch.setattr("offline_assistant.main.create_platform", lambda: platform)
+    voice = Mock()
+    voice.transcribe.return_value = text
+    brain = Mock()
+    brain.propose.return_value = [ToolCall("flashlight", {"enabled": True})]
+    main(["--audio", "command.wav", "--language", language] + (["--execute"] if execute else []),
+         brain=brain, transcriber=voice)
+    voice.transcribe.assert_called_once_with("command.wav", language)
+    brain.propose.assert_called_once_with(text)
+    assert platform.flashlight_enabled is execute
+    assert f"Transcript ({language}): {text}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("text, transcribe_only", [("", False), ("  ", False), ("enciende la linterna", True)])
+def test_transcription_can_stop_without_loading_needle(monkeypatch, text, transcribe_only):
+    voice = Mock()
+    voice.transcribe.return_value = text
+    load = Mock(side_effect=AssertionError("Needle must not load"))
+    monkeypatch.setattr("offline_assistant.main.NeedleBrain.load", load)
+    main(["--audio", "command.wav", "--language", "es"] +
+         (["--transcribe-only"] if transcribe_only else []), transcriber=voice)
+    load.assert_not_called()
+
+
+def test_transcription_error_never_reaches_brain(capsys):
+    voice, brain = Mock(), Mock()
+    voice.transcribe.side_effect = ValueError("bad recording")
+    with pytest.raises(SystemExit) as error:
+        main(["--audio", "bad.wav", "--language", "en", "--execute"], brain=brain, transcriber=voice)
+    assert error.value.code == 1
+    brain.propose.assert_not_called()
+    assert "bad recording" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("args", [
+    ["--audio", "command.wav"],
+    ["on", "--audio", "command.wav", "--language", "en"],
+    ["--language", "es"], ["--transcribe-only"], ["--models-dir", "models"],
+    ["--audio", "command.wav", "--language", "en", "--transcribe-only", "--execute"],
+])
+def test_audio_option_errors(args):
+    with pytest.raises(SystemExit) as error:
+        main(args)
+    assert error.value.code == 2
