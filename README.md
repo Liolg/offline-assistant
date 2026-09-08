@@ -227,10 +227,47 @@ Spanish text is passed to Needle unchanged. Evaluate examples such as
 “enciende la linterna” and “apaga la linterna” in preview mode before execution;
 recognition support alone does not establish reliable Spanish tool selection.
 
-Native Termux Vosk Python installation and audio inference are not yet verified.
-The available Android Vosk SDK and Linux Python wheels are different deployment
-paths; do not assume a Linux ARM64 wheel loads in Termux. First check
-`python -c "import vosk; print('Vosk import OK')"` on the phone and use its result
-to determine the next setup step. The existing typed Android flow works without
-Vosk. Regular pytest tests use generated WAV data and fake recognizers, with no
-model downloads or network access.
+The existing typed Android flow works without Vosk. Regular pytest tests use
+generated WAV data and fake recognizers, with no model downloads or network access.
+
+## Vosk runtime setup on ARM64 Termux
+
+The official Linux Python wheel includes a Linux library, which must be replaced
+with the Android build for native Termux. The repository helper combines the
+Python bindings and Android ARM64 library from the same official
+[Vosk 0.3.45 release](https://github.com/alphacep/vosk-api/releases/tag/v0.3.45).
+It creates a wheel with the current interpreter's native platform tag, regenerates
+its file hashes, installs it into the active virtual environment, and checks the
+import. It downloads about 14 MB during setup; it downloads no language models.
+
+After committing/pushing the helper from PC, pull the repository on the phone.
+Run the following inside native Termux, from `~/offline-assistant`:
+
+```sh
+git pull --ff-only
+apt update
+apt full-upgrade
+apt install python-pip clang libffi
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install packaging
+python scripts/install_vosk_termux.py
+```
+
+If `.venv` already exists, just activate it instead of creating it again. The
+helper installs/reinstalls Vosk and its Python dependencies in that environment.
+It refuses to run outside an active virtual environment or outside ARM64 Termux.
+Expected final import output: `Vosk import OK`. After reopening Termux, activate
+the same environment before running the assistant or checking the import:
+
+```sh
+cd ~/offline-assistant
+source .venv/bin/activate
+python -c "import vosk; print('Vosk import OK')"
+```
+
+The helper has been tested against the real release archives on PC, including
+library selection and wheel packaging. Loading it and transcribing audio on the
+phone still require device validation. If installation/import fails, keep the
+error output for diagnosis. Once the import passes, download the two models and
+run the transcription-only examples above before enabling execution.
