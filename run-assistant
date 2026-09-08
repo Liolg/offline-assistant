@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+assistant_python="$repo_dir/.venv/bin/python"
+
+if [[ ! -x "$assistant_python" ]]; then
+    printf '%s\n' "Missing virtual environment: $repo_dir/.venv" \
+        "Create .venv and install the dependencies using README.md, then retry." >&2
+    exit 1
+fi
+
+# Resolve models and recordings relative to the repository, wherever invoked.
+cd -- "$repo_dir"
+export PYTHONPATH="$repo_dir/src"
+exec "$assistant_python" -m offline_assistant.main "$@"

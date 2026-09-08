@@ -3,7 +3,28 @@
 Python foundation for an offline Android voice assistant. The default demo uses
 a mocked flashlight without runtime dependencies. An optional Needle 2 adapter
 turns typed commands into validated tool-call proposals. Optional Vosk transcription
-accepts English or Spanish recordings. Microphone capture is not implemented yet.
+accepts English or Spanish recordings, including microphone capture through Termux.
+
+## Launch without activating the environment
+
+Once `.venv` and the required dependencies are installed, use the launcher:
+
+```sh
+./run-assistant
+./run-assistant --record --language es --platform android \
+  --needle-bin models/needle/needle
+```
+
+The first command runs the desktop mock demo. The second records and previews
+a voice command on your phone; add `--execute` to execute the proposed action.
+The launcher uses `.venv/bin/python` directly, so activation is unnecessary after
+reopening Termux. All CLI arguments are forwarded unchanged.
+
+You can also invoke `~/offline-assistant/run-assistant` from another directory.
+Relative paths for models, recordings, and the Needle executable are resolved
+from the repository directory. The launcher reports a missing `.venv` without
+installing dependencies or downloading models. If executable permission is
+missing, run `bash ~/offline-assistant/run-assistant` with the same arguments.
 
 ## Run on PC / WSL
 
