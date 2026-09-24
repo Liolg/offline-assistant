@@ -228,7 +228,9 @@ call setup and remains to be verified on your device.
 ## Open an installed app
 
 Say “abre YouTube” or “abrir la aplicación WhatsApp” with the existing Spanish
-widget shortcut. The assistant looks for a unique installed Android package whose
+widget shortcut. WhatsApp uses its known package ID (`com.whatsapp`) directly,
+so it works even when Android denies Termux access to `pm list packages`. For
+other names, the assistant looks for a unique installed Android package whose
 package-name component matches the spoken app name, then launches its main
 activity. Preview from Termux without opening anything:
 
@@ -243,11 +245,14 @@ create an optional `apps.json` in the repository directory. For example:
 {"mi música": "com.spotify.music"}
 ```
 
-The launcher reads this file locally; it is ignored by Git. Find package IDs on
-your phone with `pm list packages`. If a name matches more than one package, the
-assistant stops and asks for an alias rather than guessing. An unavailable app or
-an Android launch error also stops the command. App launches from a background
-widget may depend on your phone's Android restrictions and need device testing.
+The launcher reads this file locally; it is ignored by Git. Local aliases override
+the built-in WhatsApp mapping, which is useful for WhatsApp Business. If Android
+allows package listing, `pm list packages` can help find IDs. If package listing
+fails, an alias lets the assistant open that app without listing packages. If a
+name matches more than one package, the assistant stops and asks for an alias
+rather than guessing. An unavailable app or an Android launch error also stops
+the command. App launches from a background widget may depend on your phone's
+Android restrictions and need device testing.
 
 ## Set an alarm
 

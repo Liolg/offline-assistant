@@ -53,6 +53,35 @@ def test_local_app_alias_matches_installed_package(tmp_path):
     assert platform.opened_apps == ["com.spotify.music"]
 
 
+def test_whatsapp_uses_known_package_without_discovery(tmp_path):
+    platform = Mock(spec=DesktopPlatform)
+    platform.installed_packages.side_effect = subprocess.CalledProcessError(
+        2, ["pm", "list", "packages"]
+    )
+    assert open_app(platform, "whatsapp", tmp_path / "missing.json") == "com.whatsapp"
+    platform.installed_packages.assert_not_called()
+    platform.open_app.assert_called_once_with("com.whatsapp")
+
+
+def test_local_alias_overrides_known_whatsapp_package(tmp_path):
+    aliases = tmp_path / "apps.json"
+    aliases.write_text('{"whatsapp": "com.whatsapp.w4b"}', encoding="utf-8")
+    platform = Mock(spec=DesktopPlatform)
+    assert open_app(platform, "whatsapp", aliases) == "com.whatsapp.w4b"
+    platform.installed_packages.assert_not_called()
+    platform.open_app.assert_called_once_with("com.whatsapp.w4b")
+
+
+def test_package_discovery_failure_suggests_alias(tmp_path):
+    platform = Mock(spec=DesktopPlatform)
+    platform.installed_packages.side_effect = subprocess.CalledProcessError(
+        2, ["pm", "list", "packages"]
+    )
+    with pytest.raises(RuntimeError, match="apps.json"):
+        open_app(platform, "youtube", tmp_path / "missing.json")
+    platform.open_app.assert_not_called()
+
+
 def test_exact_package_suffix_wins_over_related_app(tmp_path):
     platform = DesktopPlatform()
     platform.packages = ["com.google.android.youtube", "com.google.android.apps.youtube.music"]
@@ -151,6 +180,22 @@ def test_android_uses_literal_commands_for_app_and_alarm(monkeypatch):
                            "--ei", "android.intent.extra.alarm.HOUR", "7",
                            "--ei", "android.intent.extra.alarm.MINUTES", "30",
                            "--ez", "android.intent.extra.alarm.SKIP_UI", "true"]
+
+
+def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    commands = []
+
+    def run(args, **kwargs):
+        commands.append(args)
+        if args[0] == "pm":
+            raise subprocess.CalledProcessError(2, args)
+        return subprocess.CompletedProcess(args, 0, "Starting: Intent", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    main(["abre whatsapp", "--platform", "android", "--execute"])
+    assert commands == [["am", "start", "-a", "android.intent.action.MAIN",
+                         "-c", "android.intent.category.LAUNCHER", "-p", "com.whatsapp"]]
 
 
 @pytest.mark.parametrize("output", ["Error: Activity not found", "Error type 3", "Security exception: Permission Denial"])

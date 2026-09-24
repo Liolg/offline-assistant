@@ -2,12 +2,14 @@
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 from platform_api.base import Platform
 
 
 PACKAGE_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
+KNOWN_PACKAGES = {"whatsapp": "com.whatsapp"}
 
 
 def _aliases(path: Path) -> dict[str, str]:
@@ -39,8 +41,16 @@ def open_app(platform: Platform, name: str, aliases_path: Path = Path("apps.json
     aliases = _aliases(aliases_path)
     if requested in aliases:
         matches = {aliases[requested]}
+    elif requested in KNOWN_PACKAGES:
+        matches = {KNOWN_PACKAGES[requested]}
     else:
-        packages = platform.installed_packages()
+        try:
+            packages = platform.installed_packages()
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise RuntimeError(
+                "Cannot list installed apps on this phone. Add the app name and "
+                "package ID to apps.json to open it without package discovery"
+            ) from exc
         if any(not isinstance(package, str) or not PACKAGE_PATTERN.fullmatch(package)
                for package in packages):
             raise ValueError("Android returned an invalid package identifier")
