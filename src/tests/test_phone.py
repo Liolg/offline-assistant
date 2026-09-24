@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from assistant.tool_calls import ToolCall
+from assistant.tool_calls import ToolCall, direct_contact_call
 from offline_assistant.main import main
 from platform_api.android import AndroidPlatform
 from platform_api.base import Contact
@@ -28,6 +28,40 @@ def test_typed_call_executes_one_exact_contact(monkeypatch, capsys):
     main(["call mom", "--execute-mock"], brain=brain)
     assert platform.called_numbers == ["+5355551234"]
     assert "Calling Mom (+5355551234)..." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("text, name", [
+    ("call mom", "mom"), ("CALL Mom", "Mom"),
+    ("call Mom Smith.", "Mom Smith"),
+])
+def test_literal_call_command_is_recognized(text, name):
+    assert direct_contact_call(text) == ToolCall("call_contact", {"name": name})
+
+
+@pytest.mark.parametrize("text", ["call", "call .", "please call mom", "recall mom"])
+def test_other_phrases_still_use_brain(text):
+    assert direct_contact_call(text) is None
+
+
+def test_literal_call_skips_needle_confidence(monkeypatch):
+    platform = DesktopPlatform([Contact("Mom", "5551234")])
+    monkeypatch.setattr("offline_assistant.main.create_platform", lambda: platform)
+    monkeypatch.setattr("offline_assistant.main.NeedleBrain.load",
+                        Mock(side_effect=AssertionError("Needle must not load")))
+    monkeypatch.setattr("offline_assistant.main.NativeNeedleClient",
+                        Mock(side_effect=AssertionError("Needle must not load")))
+    main(["call mom", "--needle-bin", "missing", "--execute-mock"])
+    assert platform.called_numbers == ["5551234"]
+
+
+def test_recorded_literal_call_skips_needle(monkeypatch):
+    platform = DesktopPlatform([Contact("Mom", "5551234")])
+    monkeypatch.setattr("offline_assistant.main.create_platform", lambda: platform)
+    monkeypatch.setattr("offline_assistant.main.NeedleBrain.load",
+                        Mock(side_effect=AssertionError("Needle must not load")))
+    voice = Mock(transcribe=Mock(return_value="call mom"))
+    main(["--record", "--language", "en", "--execute-mock"], transcriber=voice)
+    assert platform.called_numbers == ["5551234"]
 
 
 def test_recorded_call_uses_same_validation(monkeypatch):
@@ -102,9 +136,8 @@ def test_android_cli_requires_execute_for_contact_call(monkeypatch, execute):
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(subprocess, "run", run)
-    brain = Mock(propose=Mock(return_value=[ToolCall("call_contact", {"name": "Mom"})]))
-    main(["call mom", "--platform", "android"] + (["--execute"] if execute else []),
-         brain=brain)
+    main(["call mom", "--platform", "android", "--needle-bin", "missing"] +
+         (["--execute"] if execute else []))
     assert commands == ([
         ["termux-contact-list"], ["termux-telephony-call", "5551234"]
     ] if execute else [])

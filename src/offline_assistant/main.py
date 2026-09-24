@@ -9,6 +9,7 @@ from assistant.brain import Brain, NeedleBrain
 from assistant.config import create_platform
 from assistant.executor import Executor
 from assistant.native_needle import NativeNeedleClient
+from assistant.tool_calls import direct_contact_call
 from assistant.voice import Transcriber, VoskTranscriber
 from tools.system import flashlight
 
@@ -87,12 +88,16 @@ def main(
     if args.command is not None:
         executor = Executor(platform)
         try:
-            if brain is None:
-                brain = (
-                    NeedleBrain(NativeNeedleClient(args.needle_bin))
-                    if args.needle_bin else NeedleBrain.load()
-                )
-            calls = brain.propose(args.command)
+            direct_call = direct_contact_call(args.command) if brain is None else None
+            if direct_call is not None:
+                calls = [direct_call]
+            else:
+                if brain is None:
+                    brain = (
+                        NeedleBrain(NativeNeedleClient(args.needle_bin))
+                        if args.needle_bin else NeedleBrain.load()
+                    )
+                calls = brain.propose(args.command)
             # Validate the entire proposal before the first possible side effect.
             executor.validate_proposal(calls)
             print(json.dumps([asdict(call) for call in calls]))

@@ -188,22 +188,26 @@ app Contacts and Phone permissions when Android requests them. Save a contact
 named `Mom` on the phone, then preview the typed command:
 
 ```sh
-./run-assistant "call mom" --platform android --needle-bin models/needle/needle
+./run-assistant "call mom" --platform android
 ```
 
 The preview prints a `call_contact` proposal without reading contacts or dialing.
 To place the call, add `--execute`:
 
 ```sh
-./run-assistant "call mom" --platform android --needle-bin models/needle/needle --execute
+./run-assistant "call mom" --platform android --execute
 ```
 
 For a spoken command, use the same recording flow:
 
 ```sh
-./run-assistant --record --language en --platform android \
-  --needle-bin models/needle/needle --execute
+./run-assistant --record --language en --platform android --execute
 ```
+
+The literal English command `call <contact name>` is parsed directly, so it does
+not depend on Needle's confidence score. You may leave `--needle-bin` in your
+existing command; it is ignored for this exact command form. Other phrasings
+still use Needle. Recorded commands still require Vosk to transcribe the audio.
 
 The assistant matches a saved contact name exactly, ignoring capitalization and
 surrounding spaces. It prints the selected contact and number immediately before
