@@ -107,8 +107,9 @@ def _alarm_time(value: str) -> tuple[int, int] | None:
 
 def direct_set_alarm(text: str) -> ToolCall | None:
     """Recognize common Spanish alarm requests with an explicit time."""
+    # Vosk has transcribed spoken "pon una alarma" as "con una alarma".
     match = re.fullmatch(
-        r"(?:pon|poner|configura|configurar|programa|programar)\s+"
+        r"(?:pon|con|poner|configura|configurar|programa|programar)\s+"
         r"(?:(?:una|la)\s+)?alarma\s+(?:a|para)\s+las?\s+(.+)",
         text.strip(), flags=re.IGNORECASE,
     )

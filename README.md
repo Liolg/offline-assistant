@@ -282,7 +282,9 @@ widget may depend on your phone's Android restrictions and need device testing.
 ## Set an alarm
 
 Say “pon una alarma a las siete y media” or “pon una alarma a las 19:45” with
-the Spanish widget shortcut. Preview a typed command with:
+the Spanish widget shortcut. If Vosk hears “con una alarma a las seis” instead
+of “pon una alarma a las seis”, the complete phrase still sets a 06:00 alarm.
+Preview a typed command with:
 
 ```sh
 ./run-assistant "pon una alarma a las 7:30" --platform android

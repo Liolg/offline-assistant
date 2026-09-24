@@ -211,6 +211,7 @@ def test_bad_alias_file_fails_without_launch(tmp_path):
 
 @pytest.mark.parametrize("text, hour, minute", [
     ("pon una alarma a las 7:30", 7, 30),
+    ("con una alarma a las seis", 6, 0),
     ("pon una alarma a las siete y media", 7, 30),
     ("programa la alarma para las 7 de la tarde", 19, 0),
     ("configura alarma a las 6 de la mañana", 6, 0),
@@ -221,7 +222,9 @@ def test_direct_alarm_command(text, hour, minute):
     assert direct_set_alarm(text) == ToolCall("set_alarm", {"hour": hour, "minute": minute})
 
 
-@pytest.mark.parametrize("text", ["pon una alarma a las 24:00", "pon una alarma a las 7:70"])
+@pytest.mark.parametrize("text", [
+    "pon una alarma a las 24:00", "pon una alarma a las 7:70", "con una alarma a las 24:00"
+])
 def test_invalid_spoken_alarm_never_falls_back_to_needle(monkeypatch, text):
     monkeypatch.setattr("offline_assistant.main.NeedleBrain.load",
                         Mock(side_effect=AssertionError("Needle must not load")))
@@ -230,15 +233,19 @@ def test_invalid_spoken_alarm_never_falls_back_to_needle(monkeypatch, text):
     assert error.value.code == 1
 
 
-def test_spanish_recording_sets_alarm_without_needle(monkeypatch):
+@pytest.mark.parametrize("transcript, expected", [
+    ("pon una alarma a las siete y media", (7, 30)),
+    ("con una alarma a las seis", (6, 0)),
+])
+def test_spanish_recording_sets_alarm_without_needle(monkeypatch, transcript, expected):
     platform = DesktopPlatform()
     monkeypatch.setattr("offline_assistant.main.create_platform", lambda: platform)
     monkeypatch.setattr("offline_assistant.main.NativeNeedleClient",
                         Mock(side_effect=AssertionError("Needle must not load")))
-    voice = Mock(transcribe=Mock(return_value="pon una alarma a las siete y media"))
+    voice = Mock(transcribe=Mock(return_value=transcript))
     main(["--record", "--language", "es", "--needle-bin", "missing", "--execute-mock"],
          transcriber=voice)
-    assert platform.alarms == [(7, 30)]
+    assert platform.alarms == [expected]
 
 
 @pytest.mark.parametrize("hour, minute", [(24, 0), (-1, 0), (7, 60), (True, 0), (7, False)])
