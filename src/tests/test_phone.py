@@ -33,12 +33,16 @@ def test_typed_call_executes_one_exact_contact(monkeypatch, capsys):
 @pytest.mark.parametrize("text, name", [
     ("call mom", "mom"), ("CALL Mom", "Mom"),
     ("call Mom Smith.", "Mom Smith"),
+    ("llama a mamá", "mamá"), ("llama a mama", "mama"),
+    ("llamar a mi mamá", "mi mamá"), ("llama a Mom", "Mom"),
+    ("llama mamá", "mamá"),
 ])
 def test_literal_call_command_is_recognized(text, name):
     assert direct_contact_call(text) == ToolCall("call_contact", {"name": name})
 
 
-@pytest.mark.parametrize("text", ["call", "call .", "please call mom", "recall mom"])
+@pytest.mark.parametrize("text", ["call", "call .", "please call mom", "recall mom",
+                                  "llama", "llama a", "llama a .", "me llama mamá"])
 def test_other_phrases_still_use_brain(text):
     assert direct_contact_call(text) is None
 
@@ -62,6 +66,37 @@ def test_recorded_literal_call_skips_needle(monkeypatch):
     voice = Mock(transcribe=Mock(return_value="call mom"))
     main(["--record", "--language", "en", "--execute-mock"], transcriber=voice)
     assert platform.called_numbers == ["5551234"]
+
+
+@pytest.mark.parametrize("transcript", ["llama a mamá", "llama a mama", "llamar a mi mamá"])
+def test_spanish_recorded_call_uses_mom_contact_without_needle(monkeypatch, transcript):
+    platform = DesktopPlatform([Contact("Mom", "5551234")])
+    monkeypatch.setattr("offline_assistant.main.create_platform", lambda: platform)
+    monkeypatch.setattr("offline_assistant.main.NativeNeedleClient",
+                        Mock(side_effect=AssertionError("Needle must not load")))
+    voice = Mock(transcribe=Mock(return_value=transcript))
+    main(["--record", "--language", "es", "--needle-bin", "missing", "--execute-mock"],
+         transcriber=voice)
+    assert platform.called_numbers == ["5551234"]
+
+
+def test_actual_mama_contact_takes_precedence_over_mom_alias():
+    platform = DesktopPlatform([Contact("Mom", "5551234"), Contact("Mamá", "5555678")])
+    call_contact(platform, "mamá")
+    assert platform.called_numbers == ["5555678"]
+
+
+def test_unaccented_transcript_prefers_actual_mama_contact():
+    platform = DesktopPlatform([Contact("Mom", "5551234"), Contact("Mamá", "5555678")])
+    call_contact(platform, "mama")
+    assert platform.called_numbers == ["5555678"]
+
+
+def test_ambiguous_mother_names_do_not_dial():
+    platform = DesktopPlatform([Contact("Mamá", "5551234"), Contact("Mi Mamá", "5555678")])
+    with pytest.raises(ValueError, match="Multiple numbers"):
+        call_contact(platform, "mama")
+    assert platform.called_numbers == []
 
 
 def test_recorded_call_uses_same_validation(monkeypatch):

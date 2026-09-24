@@ -36,6 +36,8 @@ exec /data/data/com.termux/files/usr/bin/bash \
 It records a five-second Spanish command and executes validated actions on the
 Android device. The launcher resolves the relative Needle path from the repository
 directory. Changes to voice commands should account for this existing shortcut.
+The direct call parser accepts Spanish phrases such as `llama a mamá`; if no
+Spanish mother contact matches, the name resolves to a contact saved as `Mom`.
 
 ## Coding Style & Naming Conventions
 

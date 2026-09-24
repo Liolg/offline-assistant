@@ -20,11 +20,20 @@ class ToolCall:
 
 
 def direct_contact_call(text: str) -> ToolCall | None:
-    """Recognize the literal English command 'call <saved contact name>'."""
-    parts = text.strip().split(maxsplit=1)
-    if len(parts) != 2 or parts[0].casefold() != "call":
+    """Recognize literal English and Spanish contact-call commands."""
+    parts = text.strip().split(maxsplit=2)
+    if len(parts) >= 2 and parts[0].casefold() == "call":
+        name = " ".join(parts[1:])
+    elif len(parts) >= 2 and parts[0].casefold() in {"llama", "llamar"}:
+        if parts[1].casefold() == "a":
+            if len(parts) != 3:
+                return None
+            name = parts[2]
+        else:
+            name = " ".join(parts[1:])
+    else:
         return None
-    name = parts[1].strip()
+    name = name.strip()
     if name.endswith("."):
         name = name[:-1].rstrip()
     if not name:

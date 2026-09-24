@@ -204,10 +204,14 @@ For a spoken command, use the same recording flow:
 ./run-assistant --record --language en --platform android --execute
 ```
 
-The literal English command `call <contact name>` is parsed directly, so it does
-not depend on Needle's confidence score. You may leave `--needle-bin` in your
-existing command; it is ignored for this exact command form. Other phrasings
-still use Needle. Recorded commands still require Vosk to transcribe the audio.
+The existing Spanish widget shortcut can use the same flow with `--language es`:
+say “llama a mamá” to call a contact saved as `Mom`. Literal English commands
+(`call <contact name>`) and Spanish commands (`llama a <contact name>` or
+`llamar a <contact name>`) are parsed directly, so they do not depend on Needle's
+confidence score. For Spanish “mamá” or “mama,” a matching Spanish contact name
+takes priority; if none exists, the assistant looks for `Mom`. You may leave
+`--needle-bin` in the widget command; it is ignored for these exact forms. Other
+phrasings still use Needle. Recorded commands still require Vosk transcription.
 
 The assistant matches a saved contact name exactly, ignoring capitalization and
 surrounding spaces. It prints the selected contact and number immediately before

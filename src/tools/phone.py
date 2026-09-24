@@ -5,6 +5,9 @@ import re
 from platform_api.base import Contact, Platform
 
 
+MOTHER_NAMES = {"mamá", "mama", "mi mamá", "mi mama"}
+
+
 def normalize_number(number: str) -> str:
     """Remove display separators while retaining the dialing prefix."""
     if not isinstance(number, str) or not number.strip():
@@ -22,11 +25,22 @@ def call_contact(platform: Platform, name: str) -> Contact:
     if not isinstance(name, str) or not name.strip():
         raise ValueError("Contact name must be a nonempty string")
     requested = name.strip().casefold()
-    matches: dict[str, Contact] = {}
-    for contact in platform.list_contacts():
-        if contact.name.strip().casefold() == requested:
-            number = normalize_number(contact.number)
-            matches[number] = Contact(contact.name.strip(), number)
+    contacts = platform.list_contacts()
+
+    def matching_contacts(names: set[str]) -> dict[str, Contact]:
+        matches: dict[str, Contact] = {}
+        for contact in contacts:
+            if contact.name.strip().casefold() in names:
+                number = normalize_number(contact.number)
+                matches[number] = Contact(contact.name.strip(), number)
+        return matches
+
+    matches = matching_contacts({requested})
+    # Vosk may omit the accent in mamá. Prefer an actual Spanish contact name.
+    if not matches and requested in MOTHER_NAMES:
+        matches = matching_contacts(MOTHER_NAMES - {requested})
+        if not matches:
+            matches = matching_contacts({"mom"})
     if not matches:
         raise ValueError(f"Contact not found: {name.strip()}")
     if len(matches) != 1:
