@@ -10,6 +10,7 @@ from platform_api.base import Contact, Platform, validate_recording_seconds
 KNOWN_LAUNCH_COMPONENTS = {
     "com.whatsapp": "com.whatsapp/com.whatsapp.Main",
     "org.telegram.messenger": "org.telegram.messenger/org.telegram.ui.LaunchActivity",
+    "org.telegram.messenger.web": "org.telegram.messenger.web/org.telegram.ui.LaunchActivity",
 }
 
 

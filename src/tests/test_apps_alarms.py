@@ -210,7 +210,12 @@ def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
                          "-n", "com.whatsapp/com.whatsapp.Main"]]
 
 
-def test_android_telegram_command_ignores_framework_package(monkeypatch, tmp_path):
+@pytest.mark.parametrize("telegram_package", [
+    "org.telegram.messenger",
+    "org.telegram.messenger.web",
+])
+def test_android_telegram_command_ignores_framework_package(monkeypatch, tmp_path,
+                                                            telegram_package):
     monkeypatch.chdir(tmp_path)
     commands = []
 
@@ -218,7 +223,7 @@ def test_android_telegram_command_ignores_framework_package(monkeypatch, tmp_pat
         commands.append(args)
         if args[:3] == ["pm", "list", "packages"]:
             return subprocess.CompletedProcess(
-                args, 0, "package:android\npackage:org.telegram.messenger\n", ""
+                args, 0, f"package:android\npackage:{telegram_package}\n", ""
             )
         if "-p" in args:
             return subprocess.CompletedProcess(args, 1, "", "unable to resolve Intent")
@@ -229,7 +234,7 @@ def test_android_telegram_command_ignores_framework_package(monkeypatch, tmp_pat
     assert commands[1] == ["am", "start", "--user", "0",
                            "-a", "android.intent.action.MAIN",
                            "-c", "android.intent.category.LAUNCHER",
-                           "-n", "org.telegram.messenger/org.telegram.ui.LaunchActivity"]
+                           "-n", f"{telegram_package}/org.telegram.ui.LaunchActivity"]
 
 
 @pytest.mark.parametrize("output", ["Error: Activity not found", "Error type 3", "Security exception: Permission Denial"])
