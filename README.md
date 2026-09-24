@@ -228,8 +228,9 @@ call setup and remains to be verified on your device.
 ## Open an installed app
 
 Say “abre YouTube” or “abrir la aplicación WhatsApp” with the existing Spanish
-widget shortcut. WhatsApp uses its known package ID (`com.whatsapp`) directly,
-so it works even when Android denies Termux access to `pm list packages`. For
+widget shortcut. WhatsApp uses its known package ID (`com.whatsapp`) and launcher
+activity (`com.whatsapp.Main`) directly, so it works even when Android denies
+Termux access to `pm list packages` or cannot resolve a package-only launch. For
 other names, the assistant looks for a unique installed Android package whose
 package-name component matches the spoken app name, then launches its main
 activity. Preview from Termux without opening anything:

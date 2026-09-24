@@ -7,6 +7,11 @@ import time
 from platform_api.base import Contact, Platform, validate_recording_seconds
 
 
+KNOWN_LAUNCH_COMPONENTS = {
+    "com.whatsapp": "com.whatsapp/com.whatsapp.Main",
+}
+
+
 class AndroidPlatform(Platform):
     """Existing Termux adapter; only used when explicitly instantiated."""
 
@@ -70,11 +75,15 @@ class AndroidPlatform(Platform):
             raise RuntimeError(f"Android could not start activity: {output or f'exit status {result.returncode}'}")
 
     def open_app(self, package: str) -> None:
-        self._start_activity([
+        args = [
             "-a", "android.intent.action.MAIN",
             "-c", "android.intent.category.LAUNCHER",
-            "-p", package,
-        ])
+        ]
+        if package in KNOWN_LAUNCH_COMPONENTS:
+            args.extend(["-n", KNOWN_LAUNCH_COMPONENTS[package]])
+        else:
+            args.extend(["-p", package])
+        self._start_activity(args)
 
     def set_alarm(self, hour: int, minute: int) -> None:
         self._start_activity([

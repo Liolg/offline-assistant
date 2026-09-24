@@ -190,12 +190,15 @@ def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
         commands.append(args)
         if args[0] == "pm":
             raise subprocess.CalledProcessError(2, args)
+        if "-p" in args:
+            return subprocess.CompletedProcess(args, 1, "", "unable to resolve Intent")
         return subprocess.CompletedProcess(args, 0, "Starting: Intent", "")
 
     monkeypatch.setattr(subprocess, "run", run)
     main(["abre whatsapp", "--platform", "android", "--execute"])
     assert commands == [["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
-                         "-c", "android.intent.category.LAUNCHER", "-p", "com.whatsapp"]]
+                         "-c", "android.intent.category.LAUNCHER",
+                         "-n", "com.whatsapp/com.whatsapp.Main"]]
 
 
 @pytest.mark.parametrize("output", ["Error: Activity not found", "Error type 3", "Security exception: Permission Denial"])
