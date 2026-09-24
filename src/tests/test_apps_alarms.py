@@ -133,6 +133,29 @@ def test_close_icon_name_launches_unique_app(tmp_path):
     assert platform.opened_apps == ["com.example.notes"]
 
 
+def test_pista_transcript_selects_picta_with_clear_lead(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.picta", "com.android.systemui", "com.example.bitchat"]
+    platform.app_label_map = {
+        "com.example.picta": ("Picta",),
+        "com.android.systemui": ("UI sistema",),
+        "com.example.bitchat": ("bitchat",),
+    }
+    assert open_app(platform, "pista", tmp_path / "missing.json") == "com.example.picta"
+    assert platform.opened_apps == ["com.example.picta"]
+
+
+def test_pista_transcript_does_not_guess_between_close_apps(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.picta", "com.example.pistax"]
+    platform.app_label_map = {
+        "com.example.picta": ("Picta",), "com.example.pistax": ("PistaX",)
+    }
+    with pytest.raises(ValueError, match="Closest icon names: PistaX, Picta"):
+        open_app(platform, "pista", tmp_path / "missing.json")
+    assert platform.opened_apps == []
+
+
 def test_fuzzy_app_match_requires_clear_lead(tmp_path):
     platform = DesktopPlatform()
     platform.packages = ["com.example.camas", "com.example.camao"]

@@ -107,7 +107,7 @@ def open_app(platform: Platform, name: str, aliases_path: Path = Path("apps.json
                 if ranked:
                     best = ranked[0][0]
                     runner_up = ranked[1][0] if len(ranked) > 1 else 0.0
-                    minimum = 0.86 if len(requested) <= 5 else 0.80
+                    minimum = 0.86 if len(requested) == 4 else 0.80
                     if best >= minimum and best - runner_up >= 0.15:
                         matches = {ranked[0][1]}
                     elif best >= 0.6:
