@@ -96,6 +96,23 @@ def test_android_framework_package_does_not_block_app_resolution(tmp_path):
     assert platform.opened_apps == ["org.telegram.messenger"]
 
 
+def test_spanish_icon_label_matches_without_package_name(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.camera"]
+    platform.app_label_map = {"com.example.camera": ("Cámara", "Camera")}
+    assert open_app(platform, "camara", tmp_path / "missing.json") == "com.example.camera"
+    assert platform.opened_apps == ["com.example.camera"]
+
+
+def test_duplicate_icon_labels_do_not_launch(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.one", "com.example.two"]
+    platform.app_label_map = {"com.example.one": ("Notas",), "com.example.two": ("Notas",)}
+    with pytest.raises(ValueError, match="Multiple apps match"):
+        open_app(platform, "notas", tmp_path / "missing.json")
+    assert platform.opened_apps == []
+
+
 @pytest.mark.parametrize("packages, name, message", [
     ([], "YouTube", "App not found"),
     (["com.foo.music", "com.bar.music"], "music", "Multiple apps match"),
@@ -175,6 +192,10 @@ def test_android_uses_literal_commands_for_app_and_alarm(monkeypatch):
             assert kwargs["stdin"] == subprocess.DEVNULL
             assert kwargs["capture_output"] is True
             return subprocess.CompletedProcess(args, 0, "package:com.google.android.youtube\n", "")
+        if args[:2] == ["pm", "resolve-activity"]:
+            return subprocess.CompletedProcess(
+                args, 0, "com.google.android.youtube/com.google.android.youtube.HomeActivity\n", ""
+            )
         return subprocess.CompletedProcess(args, 0, "Starting: Intent", "")
 
     monkeypatch.setattr(subprocess, "run", run)
@@ -182,16 +203,17 @@ def test_android_uses_literal_commands_for_app_and_alarm(monkeypatch):
     open_app(platform, "youtube")
     set_alarm(platform, 7, 30)
     assert commands[0] == ["pm", "list", "packages", "--user", "0"]
-    assert commands[1] == ["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
+    assert commands[1][:5] == ["pm", "resolve-activity", "--brief", "--components", "--user"]
+    assert commands[2] == ["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
                            "-c", "android.intent.category.LAUNCHER",
-                           "-p", "com.google.android.youtube"]
-    assert commands[2] == ["am", "start", "--user", "0", "-a", "android.intent.action.SET_ALARM",
+                           "-n", "com.google.android.youtube/com.google.android.youtube.HomeActivity"]
+    assert commands[3] == ["am", "start", "--user", "0", "-a", "android.intent.action.SET_ALARM",
                            "--ei", "android.intent.extra.alarm.HOUR", "7",
                            "--ei", "android.intent.extra.alarm.MINUTES", "30",
                            "--ez", "android.intent.extra.alarm.SKIP_UI", "true"]
 
 
-def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
+def test_android_whatsapp_command_does_not_list_packages(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     commands = []
 
@@ -205,9 +227,11 @@ def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
 
     monkeypatch.setattr(subprocess, "run", run)
     main(["abre whatsapp", "--platform", "android", "--execute"])
-    assert commands == [["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
-                         "-c", "android.intent.category.LAUNCHER",
-                         "-n", "com.whatsapp/com.whatsapp.Main"]]
+    assert commands[0][:2] == ["pm", "resolve-activity"]
+    assert commands[1] == ["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
+                           "-c", "android.intent.category.LAUNCHER",
+                           "-n", "com.whatsapp/com.whatsapp.Main"]
+    assert len(commands) == 2
 
 
 @pytest.mark.parametrize("telegram_package", [
@@ -225,16 +249,20 @@ def test_android_telegram_command_ignores_framework_package(monkeypatch, tmp_pat
             return subprocess.CompletedProcess(
                 args, 0, f"package:android\npackage:{telegram_package}\n", ""
             )
+        if args[:2] == ["pm", "resolve-activity"]:
+            return subprocess.CompletedProcess(
+                args, 0, f"{telegram_package}/org.telegram.messenger.DefaultIcon\n", ""
+            )
         if "-p" in args:
             return subprocess.CompletedProcess(args, 1, "", "unable to resolve Intent")
         return subprocess.CompletedProcess(args, 0, "Starting: Intent", "")
 
     monkeypatch.setattr(subprocess, "run", run)
     main(["abre telegram", "--platform", "android", "--execute"])
-    assert commands[1] == ["am", "start", "--user", "0",
+    assert commands[2] == ["am", "start", "--user", "0",
                            "-a", "android.intent.action.MAIN",
                            "-c", "android.intent.category.LAUNCHER",
-                           "-n", f"{telegram_package}/org.telegram.ui.LaunchActivity"]
+                           "-n", f"{telegram_package}/org.telegram.messenger.DefaultIcon"]
 
 
 @pytest.mark.parametrize("output", ["Error: Activity not found", "Error type 3", "Security exception: Permission Denial"])
@@ -250,3 +278,83 @@ def test_android_activity_nonzero_exit_includes_system_error(monkeypatch):
                         subprocess.CompletedProcess(args, 1, "", "Permission Denial: blocked"))
     with pytest.raises(RuntimeError, match="Permission Denial: blocked"):
         AndroidPlatform().open_app("com.whatsapp")
+
+
+def test_android_rejects_launcher_component_from_other_package(monkeypatch):
+    monkeypatch.setattr(subprocess, "run", lambda args, **kwargs:
+                        subprocess.CompletedProcess(args, 0, "com.bad.app/.Main\n", ""))
+    with pytest.raises(ValueError, match="invalid launcher activity"):
+        AndroidPlatform().open_app("com.example.app")
+
+
+def test_android_app_labels_are_cached_and_refreshed(monkeypatch, tmp_path):
+    commands = []
+
+    def run(args, **kwargs):
+        commands.append(args)
+        if args[:2] == ["pm", "path"]:
+            return subprocess.CompletedProcess(args, 0, "package:/data/app/example/base.apk\n", "")
+        if args[:3] == ["aapt", "dump", "badging"]:
+            return subprocess.CompletedProcess(
+                args, 0,
+                "application-label:'Camera'\napplication-label-es:'Cámara'\n"
+                "launchable-activity: name='com.example.camera.Main'  label='Camera' icon=''\n", ""
+            )
+        raise AssertionError(args)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr("platform_api.android.shutil.which", lambda name: "/termux/bin/aapt")
+    platform = AndroidPlatform(tmp_path / "app-labels.json")
+    expected = {"com.example.camera": ("Cámara", "Camera")}
+    assert platform.app_labels(["android", "com.example.camera"]) == expected
+    assert platform.app_labels(["android", "com.example.camera"]) == expected
+    assert len(commands) == 2
+    assert platform.app_labels(["android", "com.example.camera"], refresh=True) == expected
+    assert len(commands) == 4
+
+
+def test_android_app_labels_require_aapt(monkeypatch, tmp_path):
+    monkeypatch.setattr("platform_api.android.shutil.which", lambda name: None)
+    with pytest.raises(RuntimeError, match="pkg install aapt"):
+        AndroidPlatform(tmp_path / "missing.json").app_labels(["com.example.camera"])
+
+
+def test_android_app_labels_skip_unreadable_apk(monkeypatch, tmp_path):
+    def run(args, **kwargs):
+        if args[:2] == ["pm", "path"]:
+            if args[-1] == "com.example.hidden":
+                raise subprocess.TimeoutExpired(args, 15)
+            return subprocess.CompletedProcess(args, 0, "package:/data/app/visible/base.apk\n", "")
+        return subprocess.CompletedProcess(args, 0, "application-label:'Visible'\n", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr("platform_api.android.shutil.which", lambda name: "/termux/bin/aapt")
+    labels = AndroidPlatform(tmp_path / "app-labels.json").app_labels(
+        ["com.example.hidden", "com.example.visible"]
+    )
+    assert labels == {"com.example.hidden": (), "com.example.visible": ("Visible",)}
+
+
+def test_index_apps_cli_refreshes_labels(monkeypatch, capsys):
+    platform = Mock(spec=AndroidPlatform)
+    platform.installed_packages.return_value = ["android", "com.example.camera"]
+    platform.app_labels.return_value = {"com.example.camera": ("Cámara",)}
+    monkeypatch.setattr("platform_api.android.AndroidPlatform", lambda: platform)
+    main(["--platform", "android", "--index-apps"])
+    platform.app_labels.assert_called_once_with(
+        ["android", "com.example.camera"], refresh=True
+    )
+    assert "Indexed icon names for 1 app." in capsys.readouterr().out
+
+
+def test_unknown_app_without_launcher_fails_before_am(monkeypatch):
+    commands = []
+
+    def run(args, **kwargs):
+        commands.append(args)
+        return subprocess.CompletedProcess(args, 0, "No activity found\n", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(RuntimeError, match="Cannot find launcher activity"):
+        AndroidPlatform().open_app("com.example.unlaunchable")
+    assert len(commands) == 1

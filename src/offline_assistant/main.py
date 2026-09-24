@@ -31,6 +31,8 @@ def main(
     parser.add_argument("--models-dir", help="Vosk model parent directory (default: models)")
     parser.add_argument("--transcribe-only", action="store_true", help="Print the transcript without loading Needle")
     parser.add_argument("--platform", choices=["desktop", "android"], default="desktop")
+    parser.add_argument("--index-apps", action="store_true",
+                        help="Refresh Android app icon names for voice commands")
     parser.add_argument("--needle-bin", help="Path to a native Needle executable (no SDK needed)")
     execution = parser.add_mutually_exclusive_group()
     execution.add_argument("--execute", action="store_true", help="Execute on the selected platform")
@@ -39,6 +41,22 @@ def main(
     )
     args = parser.parse_args(argv)
     has_audio = args.audio or args.record
+    if args.index_apps:
+        if (args.platform != "android" or args.command is not None or has_audio or
+                args.execute or args.execute_mock or args.needle_bin or args.seconds is not None or
+                args.language or args.models_dir or args.transcribe_only):
+            parser.error("--index-apps requires --platform android and no command or other options")
+        from platform_api.android import AndroidPlatform
+
+        try:
+            platform = AndroidPlatform()
+            packages = platform.installed_packages()
+            labels = platform.app_labels(packages, refresh=True)
+        except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
+            parser.exit(1, f"Error: {exc}\n")
+        count = sum(bool(values) for values in labels.values())
+        print(f"Indexed icon names for {count} {'app' if count == 1 else 'apps'}.")
+        return
     if has_audio and args.command is not None:
         parser.error("Choose a typed command, --audio, or --record")
     if has_audio and not args.language:

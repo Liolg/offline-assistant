@@ -228,37 +228,43 @@ call setup and remains to be verified on your device.
 ## Open an installed app
 
 Say “abre YouTube” or “abrir la aplicación WhatsApp” with the existing Spanish
-widget shortcut. WhatsApp uses its known package ID (`com.whatsapp`) and launcher
-activity (`com.whatsapp.Main`) directly, so it works even when Android denies
-Termux access to `pm list packages` or cannot resolve a package-only launch. For
-other names, the assistant looks for a unique installed Android package whose
-package-name component matches the spoken app name, then launches its main
-activity. Telegram uses its known launch activity for both
-`org.telegram.messenger` and `org.telegram.messenger.web`. Preview from Termux
-without opening anything:
+widget shortcut. The assistant matches a spoken name to an installed package,
+asks Android for that package's launcher activity, then opens that activity
+explicitly. Known WhatsApp and Telegram activities are fallbacks when Android
+cannot resolve them. Preview from Termux without opening anything:
 
 ```sh
 ./run-assistant "abre YouTube" --platform android
 ```
 
 Add `--execute` to open it. For app names that do not match a package component,
-create an optional `apps.json` in the repository directory. For example:
+install Termux's APK inspection tool and build the local icon-name index:
+
+```sh
+pkg install aapt
+./run-assistant --platform android --index-apps
+```
+
+The assistant reads Spanish icon labels when available, then default labels.
+It caches them under `~/.cache/offline-assistant/app-labels.json`. The index is
+rebuilt automatically when the installed package list changes; rerun
+`--index-apps` after an app update or language change. The first unmatched app
+command can also build the index, but may take longer.
+
+For a custom spoken name or a package that is hidden from Termux, create an
+optional `apps.json` in the repository directory. For example:
 
 ```json
 {"mi música": "com.spotify.music"}
 ```
 
-The launcher reads this file locally; it is ignored by Git. Local aliases override
-the built-in WhatsApp mapping, which is useful for WhatsApp Business. If Android
-allows package listing, `pm list packages` can help find IDs. If package listing
-fails, an alias lets the assistant open that app without listing packages. The
-adapter closes standard input and captures output for `pm`, avoiding a Termux
-terminal restriction that can make package queries fail. If a
-name matches more than one package, the assistant stops and asks for an alias
-rather than guessing. An unavailable app or an Android launch error also stops
-the command. The Android adapter starts activities for primary user `0` and
-prints the system error if launch fails. App launches from a background widget
-may depend on your phone's Android restrictions and need device testing.
+The launcher reads this file locally; it is ignored by Git. Local aliases take
+priority over discovered names. If package listing fails, an alias bypasses the
+list. The adapter detaches package queries from Termux's terminal to avoid a
+known Android restriction. If a name matches more than one package, the
+assistant stops rather than guessing. Apps without a launcher activity and
+Android launch errors also stop the command. App launches from a background
+widget may depend on your phone's Android restrictions and need device testing.
 
 ## Set an alarm
 

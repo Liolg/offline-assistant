@@ -1,5 +1,7 @@
 import subprocess
 import json
+import re
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
@@ -12,10 +14,14 @@ KNOWN_LAUNCH_COMPONENTS = {
     "org.telegram.messenger": "org.telegram.messenger/org.telegram.ui.LaunchActivity",
     "org.telegram.messenger.web": "org.telegram.messenger.web/org.telegram.ui.LaunchActivity",
 }
+ACTIVITY_NAME = re.compile(r"\.?[A-Za-z_$][A-Za-z0-9_.$]*")
 
 
 class AndroidPlatform(Platform):
     """Existing Termux adapter; only used when explicitly instantiated."""
+
+    def __init__(self, app_cache_path: Path | None = None) -> None:
+        self.app_cache_path = app_cache_path or Path.home() / ".cache/offline-assistant/app-labels.json"
 
     def flashlight(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
@@ -65,6 +71,98 @@ class AndroidPlatform(Platform):
             packages.append(line[8:])
         return packages
 
+    def _package_labels(self, package: str) -> tuple[str, ...]:
+        """Read the labels stored in one installed APK; skip unreadable APKs."""
+        try:
+            result = subprocess.run(
+                ["pm", "path", "--user", "0", package], check=False, timeout=15,
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return ()
+        if result.returncode != 0:
+            return ()
+        paths = [line.removeprefix("package:") for line in result.stdout.splitlines()
+                 if line.startswith("package:")]
+        if not paths:
+            return ()
+        apk = next((path for path in paths if path.endswith("/base.apk")), paths[0])
+        try:
+            result = subprocess.run(
+                ["aapt", "dump", "badging", apk], check=False, timeout=20,
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError("App label matching requires aapt; run pkg install aapt in Termux") from exc
+        except (OSError, subprocess.SubprocessError):
+            return ()
+        if result.returncode != 0:
+            return ()
+        spanish = []
+        default = []
+        for line in result.stdout.splitlines():
+            match = re.fullmatch(r"application-label(?:-([\w-]+))?:'(.*)'", line)
+            if match and match.group(2):
+                if match.group(1) and match.group(1).startswith("es"):
+                    spanish.append(match.group(2))
+                elif not match.group(1):
+                    default.append(match.group(2))
+            if line.startswith("launchable-activity:"):
+                match = re.search(r"\blabel='([^']+)'", line)
+                if match:
+                    default.append(match.group(1))
+        return tuple(dict.fromkeys([*spanish, *default]))
+
+    def app_labels(self, packages: list[str], *, refresh: bool = False) -> dict[str, tuple[str, ...]]:
+        """Cache icon labels locally; a full APK scan is needed only on changes."""
+        current = sorted(set(packages))
+        if not refresh:
+            try:
+                cached = json.loads(self.app_cache_path.read_text(encoding="utf-8"))
+                if cached.get("packages") == current and isinstance(cached.get("labels"), dict):
+                    labels = cached["labels"]
+                    if all(isinstance(labels.get(package), list) and
+                           all(isinstance(label, str) for label in labels[package])
+                           for package in current if package != "android"):
+                        return {package: tuple(labels[package])
+                                for package in current if package != "android"}
+            except (OSError, ValueError, AttributeError):
+                pass
+        if shutil.which("aapt") is None:
+            raise RuntimeError("App label matching requires aapt; run pkg install aapt in Termux")
+        labels = {package: self._package_labels(package) for package in current if package != "android"}
+        self.app_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        self.app_cache_path.write_text(
+            json.dumps({"packages": current, "labels": labels}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return labels
+
+    @staticmethod
+    def _launcher_component(package: str) -> str:
+        try:
+            result = subprocess.run(
+                ["pm", "resolve-activity", "--brief", "--components", "--user", "0",
+                 "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER",
+                 "-p", package],
+                check=False, timeout=15, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            if package in KNOWN_LAUNCH_COMPONENTS:
+                return KNOWN_LAUNCH_COMPONENTS[package]
+            raise RuntimeError(f"Cannot find launcher activity for {package}: {exc}") from exc
+        if result.returncode != 0 or result.stdout.strip() == "No activity found":
+            if package in KNOWN_LAUNCH_COMPONENTS:
+                return KNOWN_LAUNCH_COMPONENTS[package]
+            detail = (result.stderr or result.stdout).strip()
+            raise RuntimeError(f"Cannot find launcher activity for {package}: {detail or 'none found'}")
+        lines = result.stdout.strip().splitlines()
+        component = lines[-1] if lines else ""
+        owner, slash, activity = component.partition("/")
+        if not slash or owner != package or not ACTIVITY_NAME.fullmatch(activity):
+            raise ValueError(f"Android returned an invalid launcher activity for {package}: {component}")
+        return component
+
     @staticmethod
     def _start_activity(args: list[str]) -> None:
         result = subprocess.run(
@@ -77,15 +175,12 @@ class AndroidPlatform(Platform):
             raise RuntimeError(f"Android could not start activity: {output or f'exit status {result.returncode}'}")
 
     def open_app(self, package: str) -> None:
-        args = [
+        component = self._launcher_component(package)
+        self._start_activity([
             "-a", "android.intent.action.MAIN",
             "-c", "android.intent.category.LAUNCHER",
-        ]
-        if package in KNOWN_LAUNCH_COMPONENTS:
-            args.extend(["-n", KNOWN_LAUNCH_COMPONENTS[package]])
-        else:
-            args.extend(["-p", package])
-        self._start_activity(args)
+            "-n", component,
+        ])
 
     def set_alarm(self, hour: int, minute: int) -> None:
         self._start_activity([

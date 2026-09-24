@@ -12,6 +12,7 @@ class DesktopPlatform(Platform):
         self.contacts = list(contacts or [])
         self.called_numbers: list[str] = []
         self.packages: list[str] = []
+        self.app_label_map: dict[str, tuple[str, ...]] = {}
         self.opened_apps: list[str] = []
         self.alarms: list[tuple[int, int]] = []
 
@@ -35,6 +36,9 @@ class DesktopPlatform(Platform):
 
     def installed_packages(self) -> list[str]:
         return list(self.packages)
+
+    def app_labels(self, packages: list[str], *, refresh: bool = False) -> dict[str, tuple[str, ...]]:
+        return {package: self.app_label_map.get(package, ()) for package in packages}
 
     def open_app(self, package: str) -> None:
         self.opened_apps.append(package)

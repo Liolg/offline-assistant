@@ -35,6 +35,10 @@ class Platform(ABC):
         """Return installed Android package identifiers visible to the platform."""
 
     @abstractmethod
+    def app_labels(self, packages: list[str], *, refresh: bool = False) -> dict[str, tuple[str, ...]]:
+        """Return available icon labels for the given installed packages."""
+
+    @abstractmethod
     def open_app(self, package: str) -> None:
         """Launch an application's main activity."""
 
