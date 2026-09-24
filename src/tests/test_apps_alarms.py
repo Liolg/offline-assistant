@@ -104,6 +104,25 @@ def test_spanish_icon_label_matches_without_package_name(tmp_path):
     assert platform.opened_apps == ["com.example.camera"]
 
 
+@pytest.mark.parametrize("heard, label", [("oxide", "Obsidian"), ("pita", "Picta")])
+def test_observed_voice_mishearing_uses_icon_label(tmp_path, heard, label):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.target"]
+    platform.app_label_map = {"com.example.target": (label,)}
+    assert open_app(platform, heard, tmp_path / "missing.json") == "com.example.target"
+    assert platform.opened_apps == ["com.example.target"]
+
+
+def test_real_app_name_takes_priority_over_voice_correction(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.pita", "com.example.picta"]
+    platform.app_label_map = {
+        "com.example.pita": ("Pita",), "com.example.picta": ("Picta",)
+    }
+    assert open_app(platform, "pita", tmp_path / "missing.json") == "com.example.pita"
+    assert platform.opened_apps == ["com.example.pita"]
+
+
 def test_duplicate_icon_labels_do_not_launch(tmp_path):
     platform = DesktopPlatform()
     platform.packages = ["com.example.one", "com.example.two"]

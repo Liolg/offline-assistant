@@ -11,6 +11,8 @@ from platform_api.base import Platform
 
 PACKAGE_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
 KNOWN_PACKAGES = {"whatsapp": "com.whatsapp"}
+# Observed Spanish Vosk transcriptions of these app names on the user's device.
+RECOGNITION_CORRECTIONS = {"oxide": "obsidian", "pita": "picta"}
 
 
 def _spoken_key(value: str) -> str:
@@ -76,6 +78,10 @@ def open_app(platform: Platform, name: str, aliases_path: Path = Path("apps.json
             labels = platform.app_labels(packages)
             matches = {package for package, values in labels.items()
                        if any(_spoken_key(label) == requested for label in values)}
+            if not matches and requested in RECOGNITION_CORRECTIONS:
+                corrected = RECOGNITION_CORRECTIONS[requested]
+                matches = {package for package, values in labels.items()
+                           if any(_spoken_key(label) == corrected for label in values)}
     if not matches:
         raise ValueError(f"App not found: {name.strip()}. Add an alias to apps.json if needed")
     if len(matches) != 1:

@@ -251,6 +251,13 @@ rebuilt automatically when the installed package list changes; rerun
 `--index-apps` after an app update or language change. The first unmatched app
 command can also build the index, but may take longer.
 
+The Spanish Vosk model may transcribe unfamiliar names as other words. The
+observed transcripts “abre oxide” and “abre pita” are mapped to the indexed
+icon labels Obsidian and Picta, respectively, after normal app matching. If
+another name is misheard consistently, add the recognized word as an alias in
+`apps.json` for that app's package ID. Check the exact wording first with
+`./run-assistant --record --language es --platform android --transcribe-only`.
+
 For a custom spoken name or a package that is hidden from Termux, create an
 optional `apps.json` in the repository directory. For example:
 
