@@ -2,7 +2,7 @@
 
 Python foundation for an offline Android voice assistant. The default demo uses
 a mocked flashlight without runtime dependencies. An optional Needle 2 adapter
-turns typed commands into validated flashlight or contact-call proposals. Optional
+turns typed commands into validated device-action proposals. Optional
 Vosk transcription accepts English or Spanish recordings, including microphone
 capture through Termux.
 
@@ -72,16 +72,18 @@ src/
   assistant/voice.py         # Local Vosk WAV transcription, English or Spanish
   assistant/tool_calls.py   # Model-independent structured requests
   assistant/executor.py     # Validation and allowlisted dispatch
-  platform_api/base.py      # Platform contract: flashlight, contacts, phone, recording
+  platform_api/base.py      # Platform contract for device operations
   platform_api/desktop.py   # In-memory mock with observable state
-  platform_api/android.py   # Termux torch, contacts, calling, and recording
+  platform_api/android.py   # Termux and Android command adapters
   tools/system.py           # Validated flashlight tool
   tools/phone.py            # Exact contact lookup and validated dialing
+  tools/apps.py             # Installed-app matching and optional local aliases
+  tools/alarms.py           # Validated alarm times
   tests/                    # pytest tests
 ```
 
 The tool receives a platform instance instead of importing a global device.
-`Platform` defines only the operation currently needed. `DesktopPlatform` stores
+`Platform` defines the available operations. `DesktopPlatform` stores
 state per instance, and the demo handles presentation. Invalid non-boolean inputs
 are rejected before dispatch, and platform errors propagate to the caller.
 
@@ -93,10 +95,8 @@ Needle → Python → Termux:API test was reported successful offline on an ARM6
 Android 14 phone with Python 3.14.6. The integrated CLI has PC mock coverage;
 verify it on your phone after pulling changes.
 
-The remaining empty modules are placeholders from the original scaffold.
-Vosk transcription feeds the same brain interface. Contact calls are supported
-only after explicit `--execute` or `--execute-mock`; SMS and other sensitive tools
-are not supported.
+Vosk transcription feeds the same command interface. Calls, app launches, and
+alarms require explicit `--execute` or `--execute-mock`; SMS is not supported.
 
 ## Typed commands with Needle 2
 
@@ -224,6 +224,48 @@ numbers, the assistant uses the one Termux returns. You can run
 `termux-contact-list` yourself to check which number that is; its output contains
 your address book, so keep it private. Phone calling requires a working cellular
 call setup and remains to be verified on your device.
+
+## Open an installed app
+
+Say “abre YouTube” or “abrir la aplicación WhatsApp” with the existing Spanish
+widget shortcut. The assistant looks for a unique installed Android package whose
+package-name component matches the spoken app name, then launches its main
+activity. Preview from Termux without opening anything:
+
+```sh
+./run-assistant "abre YouTube" --platform android
+```
+
+Add `--execute` to open it. For app names that do not match a package component,
+create an optional `apps.json` in the repository directory. For example:
+
+```json
+{"mi música": "com.spotify.music"}
+```
+
+The launcher reads this file locally; it is ignored by Git. Find package IDs on
+your phone with `pm list packages`. If a name matches more than one package, the
+assistant stops and asks for an alias rather than guessing. An unavailable app or
+an Android launch error also stops the command. App launches from a background
+widget may depend on your phone's Android restrictions and need device testing.
+
+## Set an alarm
+
+Say “pon una alarma a las siete y media” or “pon una alarma a las 19:45” with
+the Spanish widget shortcut. Preview a typed command with:
+
+```sh
+./run-assistant "pon una alarma a las 7:30" --platform android
+```
+
+With `--execute`, the assistant requests a one-time alarm in the phone's default
+Clock app using Android's [`ACTION_SET_ALARM`](https://developer.android.com/reference/android/provider/AlarmClock)
+intent. Times use the phone's local clock; “de la mañana,” “de la tarde,” and
+“de la noche” select AM or PM. Without a daypart, 7 means 07:00 and 19 means
+19:00. The request asks Clock to skip its setup screen,
+but the Clock app may still show a screen or reject the request. Termux must have
+the `SET_ALARM` permission; check the resulting alarm in Clock during phone
+validation. Invalid times such as 24:00 are rejected before Android is called.
 
 Commit source, `pyproject.toml`, and `uv.lock`; virtual environments and downloaded
 models are ignored. Keep future models under `models/` and download them separately

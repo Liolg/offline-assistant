@@ -11,6 +11,9 @@ class DesktopPlatform(Platform):
         self.flashlight_enabled = False
         self.contacts = list(contacts or [])
         self.called_numbers: list[str] = []
+        self.packages: list[str] = []
+        self.opened_apps: list[str] = []
+        self.alarms: list[tuple[int, int]] = []
 
     def flashlight(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
@@ -29,3 +32,12 @@ class DesktopPlatform(Platform):
 
     def call_phone(self, number: str) -> None:
         self.called_numbers.append(number)
+
+    def installed_packages(self) -> list[str]:
+        return list(self.packages)
+
+    def open_app(self, package: str) -> None:
+        self.opened_apps.append(package)
+
+    def set_alarm(self, hour: int, minute: int) -> None:
+        self.alarms.append((hour, minute))

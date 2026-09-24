@@ -9,7 +9,7 @@ from assistant.brain import Brain, NeedleBrain
 from assistant.config import create_platform
 from assistant.executor import Executor
 from assistant.native_needle import NativeNeedleClient
-from assistant.tool_calls import direct_contact_call
+from assistant.tool_calls import direct_contact_call, direct_open_app, direct_set_alarm
 from assistant.voice import Transcriber, VoskTranscriber
 from tools.system import flashlight
 
@@ -88,7 +88,11 @@ def main(
     if args.command is not None:
         executor = Executor(platform)
         try:
-            direct_call = direct_contact_call(args.command) if brain is None else None
+            direct_call = (
+                direct_contact_call(args.command)
+                or direct_open_app(args.command)
+                or direct_set_alarm(args.command)
+            ) if brain is None else None
             if direct_call is not None:
                 calls = [direct_call]
             else:
@@ -110,6 +114,8 @@ def main(
                         state = "on" if call.arguments["enabled"] else "off"
                         label = "ANDROID" if args.platform == "android" else "MOCK"
                         print(f"[{label}] flashlight: {state}")
+                    elif call.name == "set_alarm":
+                        print(f"Alarm requested for {call.arguments['hour']:02d}:{call.arguments['minute']:02d}.")
             else:
                 print(f"Preview only. Use --execute to execute on {args.platform}.")
         except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:

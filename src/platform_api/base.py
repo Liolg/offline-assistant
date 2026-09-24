@@ -30,6 +30,18 @@ class Platform(ABC):
     def call_phone(self, number: str) -> None:
         """Place a phone call to a previously validated number."""
 
+    @abstractmethod
+    def installed_packages(self) -> list[str]:
+        """Return installed Android package identifiers visible to the platform."""
+
+    @abstractmethod
+    def open_app(self, package: str) -> None:
+        """Launch an application's main activity."""
+
+    @abstractmethod
+    def set_alarm(self, hour: int, minute: int) -> None:
+        """Request a one-time alarm at the specified local time of day."""
+
 
 def validate_recording_seconds(seconds: int) -> None:
     if type(seconds) is not int or not 1 <= seconds <= 30:

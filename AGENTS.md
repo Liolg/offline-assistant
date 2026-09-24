@@ -6,8 +6,8 @@ This Python 3.11+ project uses a `src/` layout. `src/offline_assistant/main.py`
 provides the demo and console entry point. `src/assistant/config.py` creates the
 default platform. `src/platform_api/` contains the platform contract, desktop mock,
 and existing Android adapter. Device-independent tools belong in `src/tools/`;
-pytest tests belong in `src/tests/`. Other assistant and tool modules are currently
-placeholders. Store future downloaded models in ignored `models/` directories.
+pytest tests belong in `src/tests/`. Store downloaded models in ignored `models/`
+directories. Device-specific app aliases belong in ignored `apps.json`.
 
 ## Build, Test, and Development Commands
 
@@ -38,6 +38,8 @@ Android device. The launcher resolves the relative Needle path from the reposito
 directory. Changes to voice commands should account for this existing shortcut.
 The direct call parser accepts Spanish phrases such as `llama a mamá`; if no
 Spanish mother contact matches, the name resolves to a contact saved as `Mom`.
+Direct Spanish app and alarm commands also work through this shortcut, such as
+`abre YouTube` and `pon una alarma a las siete y media`.
 
 ## Coding Style & Naming Conventions
 
@@ -51,9 +53,9 @@ imports and style; no formatter or linter is configured.
 Pass platform instances into tools rather than accessing global devices. Keep
 Android commands inside `platform_api/android.py`. Preserve the desktop mock as
 the demo default, including in Termux. Validate tool inputs before dispatch and
-propagate platform failures. Keep future Vosk and Needle integrations separate
-from execution; dangerous actions such as calls or SMS require a confirmation
-and authorization layer. Do not commit virtual environments or downloaded models.
+propagate platform failures. Keep Vosk and Needle separate from execution;
+device actions require explicit `--execute`, and SMS is unsupported.
+Do not commit virtual environments or downloaded models.
 Update `uv.lock` when dependencies change.
 
 ## Testing Guidelines
@@ -66,8 +68,7 @@ device validation separately.
 
 ## Commit & Pull Request Guidelines
 
-Git history contains only `Initial commit`, so no established commit convention
-exists. Use concise imperative subjects, such as `Add flashlight input validation`.
+Use concise imperative subjects, such as `Add flashlight input validation`.
 Describe the problem, resulting behavior, and validation in pull requests. Link
 related issues when applicable, and identify untested Android behavior or new
 setup requirements. Update README instructions when commands or architecture change.

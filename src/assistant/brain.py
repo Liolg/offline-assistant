@@ -33,7 +33,32 @@ CALL_CONTACT_SCHEMA = {
     },
 }
 
-TOOL_SCHEMAS = [FLASHLIGHT_SCHEMA, CALL_CONTACT_SCHEMA]
+OPEN_APP_SCHEMA = {
+    "name": "open_app",
+    "description": "Open an installed Android application by its spoken name.",
+    "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "description": "Application name."}},
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+}
+
+SET_ALARM_SCHEMA = {
+    "name": "set_alarm",
+    "description": "Set a one-time alarm at a local time in 24-hour format.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "hour": {"type": "integer", "description": "Hour from 0 to 23."},
+            "minute": {"type": "integer", "description": "Minute from 0 to 59."},
+        },
+        "required": ["hour", "minute"],
+        "additionalProperties": False,
+    },
+}
+
+TOOL_SCHEMAS = [FLASHLIGHT_SCHEMA, CALL_CONTACT_SCHEMA, OPEN_APP_SCHEMA, SET_ALARM_SCHEMA]
 
 
 class Brain(Protocol):

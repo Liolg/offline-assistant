@@ -222,3 +222,5 @@ models/
 vosk-model*/
 vosk-model*.zip
 recordings/
+# Device-specific spoken app names and Android package IDs.
+/apps.json

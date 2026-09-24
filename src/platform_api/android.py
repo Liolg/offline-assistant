@@ -46,6 +46,44 @@ class AndroidPlatform(Platform):
     def call_phone(self, number: str) -> None:
         subprocess.run(["termux-telephony-call", number], check=True, timeout=15)
 
+    def installed_packages(self) -> list[str]:
+        result = subprocess.run(
+            ["pm", "list", "packages"], check=True, timeout=15,
+            capture_output=True, text=True,
+        )
+        packages = []
+        for line in result.stdout.splitlines():
+            if not line.startswith("package:") or not line[8:]:
+                raise ValueError("Android returned an invalid package list")
+            packages.append(line[8:])
+        return packages
+
+    @staticmethod
+    def _start_activity(args: list[str]) -> None:
+        result = subprocess.run(
+            ["am", "start", *args], check=True, timeout=15,
+            capture_output=True, text=True,
+        )
+        output = f"{result.stdout}\n{result.stderr}"
+        if any(marker in output.casefold() for marker in
+               ("error:", "error type", "exception", "permission denial", "unable to resolve")):
+            raise RuntimeError(f"Android could not start activity: {output.strip()}")
+
+    def open_app(self, package: str) -> None:
+        self._start_activity([
+            "-a", "android.intent.action.MAIN",
+            "-c", "android.intent.category.LAUNCHER",
+            "-p", package,
+        ])
+
+    def set_alarm(self, hour: int, minute: int) -> None:
+        self._start_activity([
+            "-a", "android.intent.action.SET_ALARM",
+            "--ei", "android.intent.extra.alarm.HOUR", str(hour),
+            "--ei", "android.intent.extra.alarm.MINUTES", str(minute),
+            "--ez", "android.intent.extra.alarm.SKIP_UI", "true",
+        ])
+
     @staticmethod
     def _microphone(*args: str) -> str:
         return subprocess.run(
