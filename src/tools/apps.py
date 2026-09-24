@@ -51,7 +51,8 @@ def open_app(platform: Platform, name: str, aliases_path: Path = Path("apps.json
                 "Cannot list installed apps on this phone. Add the app name and "
                 "package ID to apps.json to open it without package discovery"
             ) from exc
-        if any(not isinstance(package, str) or not PACKAGE_PATTERN.fullmatch(package)
+        if any(not isinstance(package, str) or
+               (package != "android" and not PACKAGE_PATTERN.fullmatch(package))
                for package in packages):
             raise ValueError("Android returned an invalid package identifier")
         installed = set(packages)

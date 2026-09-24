@@ -233,7 +233,8 @@ activity (`com.whatsapp.Main`) directly, so it works even when Android denies
 Termux access to `pm list packages` or cannot resolve a package-only launch. For
 other names, the assistant looks for a unique installed Android package whose
 package-name component matches the spoken app name, then launches its main
-activity. Preview from Termux without opening anything:
+activity. Telegram uses its known launch activity when its package is
+`org.telegram.messenger`. Preview from Termux without opening anything:
 
 ```sh
 ./run-assistant "abre YouTube" --platform android

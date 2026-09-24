@@ -89,6 +89,13 @@ def test_exact_package_suffix_wins_over_related_app(tmp_path):
     assert platform.opened_apps == ["com.google.android.youtube"]
 
 
+def test_android_framework_package_does_not_block_app_resolution(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["android", "org.telegram.messenger"]
+    assert open_app(platform, "telegram", tmp_path / "missing.json") == "org.telegram.messenger"
+    assert platform.opened_apps == ["org.telegram.messenger"]
+
+
 @pytest.mark.parametrize("packages, name, message", [
     ([], "YouTube", "App not found"),
     (["com.foo.music", "com.bar.music"], "music", "Multiple apps match"),
@@ -201,6 +208,28 @@ def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
     assert commands == [["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
                          "-c", "android.intent.category.LAUNCHER",
                          "-n", "com.whatsapp/com.whatsapp.Main"]]
+
+
+def test_android_telegram_command_ignores_framework_package(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    commands = []
+
+    def run(args, **kwargs):
+        commands.append(args)
+        if args[:3] == ["pm", "list", "packages"]:
+            return subprocess.CompletedProcess(
+                args, 0, "package:android\npackage:org.telegram.messenger\n", ""
+            )
+        if "-p" in args:
+            return subprocess.CompletedProcess(args, 1, "", "unable to resolve Intent")
+        return subprocess.CompletedProcess(args, 0, "Starting: Intent", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    main(["abre telegram", "--platform", "android", "--execute"])
+    assert commands[1] == ["am", "start", "--user", "0",
+                           "-a", "android.intent.action.MAIN",
+                           "-c", "android.intent.category.LAUNCHER",
+                           "-n", "org.telegram.messenger/org.telegram.ui.LaunchActivity"]
 
 
 @pytest.mark.parametrize("output", ["Error: Activity not found", "Error type 3", "Security exception: Permission Denial"])
