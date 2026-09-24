@@ -80,6 +80,17 @@ def test_spanish_recorded_call_uses_mom_contact_without_needle(monkeypatch, tran
     assert platform.called_numbers == ["5551234"]
 
 
+def test_spanish_recorded_call_finds_any_saved_contact(monkeypatch):
+    platform = DesktopPlatform([Contact("Juan Pérez", "+53 5555 9876")])
+    monkeypatch.setattr("offline_assistant.main.create_platform", lambda: platform)
+    monkeypatch.setattr("offline_assistant.main.NativeNeedleClient",
+                        Mock(side_effect=AssertionError("Needle must not load")))
+    voice = Mock(transcribe=Mock(return_value="llamar a juan pérez"))
+    main(["--record", "--language", "es", "--needle-bin", "missing", "--execute-mock"],
+         transcriber=voice)
+    assert platform.called_numbers == ["+5355559876"]
+
+
 def test_actual_mama_contact_takes_precedence_over_mom_alias():
     platform = DesktopPlatform([Contact("Mom", "5551234"), Contact("Mamá", "5555678")])
     call_contact(platform, "mamá")

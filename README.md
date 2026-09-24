@@ -205,7 +205,8 @@ For a spoken command, use the same recording flow:
 ```
 
 The existing Spanish widget shortcut can use the same flow with `--language es`:
-say “llama a mamá” to call a contact saved as `Mom`. Literal English commands
+say “llama a mamá” to call a contact saved as `Mom`, or “llamar a Juan Pérez”
+to call a contact saved as `Juan Pérez`. Literal English commands
 (`call <contact name>`) and Spanish commands (`llama a <contact name>` or
 `llamar a <contact name>`) are parsed directly, so they do not depend on Needle's
 confidence score. For Spanish “mamá” or “mama,” a matching Spanish contact name
