@@ -48,7 +48,7 @@ class AndroidPlatform(Platform):
 
     def installed_packages(self) -> list[str]:
         result = subprocess.run(
-            ["pm", "list", "packages"], check=True, timeout=15,
+            ["pm", "list", "packages", "--user", "0"], check=True, timeout=15,
             capture_output=True, text=True,
         )
         packages = []
@@ -61,13 +61,13 @@ class AndroidPlatform(Platform):
     @staticmethod
     def _start_activity(args: list[str]) -> None:
         result = subprocess.run(
-            ["am", "start", *args], check=True, timeout=15,
+            ["am", "start", "--user", "0", *args], check=False, timeout=15,
             capture_output=True, text=True,
         )
-        output = f"{result.stdout}\n{result.stderr}"
-        if any(marker in output.casefold() for marker in
+        output = f"{result.stdout}\n{result.stderr}".strip()
+        if result.returncode != 0 or any(marker in output.casefold() for marker in
                ("error:", "error type", "exception", "permission denial", "unable to resolve")):
-            raise RuntimeError(f"Android could not start activity: {output.strip()}")
+            raise RuntimeError(f"Android could not start activity: {output or f'exit status {result.returncode}'}")
 
     def open_app(self, package: str) -> None:
         self._start_activity([

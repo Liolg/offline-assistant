@@ -251,8 +251,9 @@ allows package listing, `pm list packages` can help find IDs. If package listing
 fails, an alias lets the assistant open that app without listing packages. If a
 name matches more than one package, the assistant stops and asks for an alias
 rather than guessing. An unavailable app or an Android launch error also stops
-the command. App launches from a background widget may depend on your phone's
-Android restrictions and need device testing.
+the command. The Android adapter starts activities for primary user `0` and
+prints the system error if launch fails. App launches from a background widget
+may depend on your phone's Android restrictions and need device testing.
 
 ## Set an alarm
 

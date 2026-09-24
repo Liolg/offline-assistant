@@ -172,11 +172,11 @@ def test_android_uses_literal_commands_for_app_and_alarm(monkeypatch):
     platform = AndroidPlatform()
     open_app(platform, "youtube")
     set_alarm(platform, 7, 30)
-    assert commands[0] == ["pm", "list", "packages"]
-    assert commands[1] == ["am", "start", "-a", "android.intent.action.MAIN",
+    assert commands[0] == ["pm", "list", "packages", "--user", "0"]
+    assert commands[1] == ["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
                            "-c", "android.intent.category.LAUNCHER",
                            "-p", "com.google.android.youtube"]
-    assert commands[2] == ["am", "start", "-a", "android.intent.action.SET_ALARM",
+    assert commands[2] == ["am", "start", "--user", "0", "-a", "android.intent.action.SET_ALARM",
                            "--ei", "android.intent.extra.alarm.HOUR", "7",
                            "--ei", "android.intent.extra.alarm.MINUTES", "30",
                            "--ez", "android.intent.extra.alarm.SKIP_UI", "true"]
@@ -194,7 +194,7 @@ def test_android_whatsapp_command_does_not_run_pm(monkeypatch, tmp_path):
 
     monkeypatch.setattr(subprocess, "run", run)
     main(["abre whatsapp", "--platform", "android", "--execute"])
-    assert commands == [["am", "start", "-a", "android.intent.action.MAIN",
+    assert commands == [["am", "start", "--user", "0", "-a", "android.intent.action.MAIN",
                          "-c", "android.intent.category.LAUNCHER", "-p", "com.whatsapp"]]
 
 
@@ -204,3 +204,10 @@ def test_android_activity_error_propagates(monkeypatch, output):
                         subprocess.CompletedProcess(args, 0, output, ""))
     with pytest.raises(RuntimeError, match="could not start activity"):
         AndroidPlatform().set_alarm(7, 30)
+
+
+def test_android_activity_nonzero_exit_includes_system_error(monkeypatch):
+    monkeypatch.setattr(subprocess, "run", lambda args, **kwargs:
+                        subprocess.CompletedProcess(args, 1, "", "Permission Denial: blocked"))
+    with pytest.raises(RuntimeError, match="Permission Denial: blocked"):
+        AndroidPlatform().open_app("com.whatsapp")
