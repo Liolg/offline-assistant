@@ -20,6 +20,23 @@ The Python override avoids the existing `.python-version` selection of 3.15.
 With an activated environment and the project installed, use
 `python -m offline_assistant.main` and `python -m pytest` instead.
 
+## Existing Android Widget Shortcut
+
+The user's Obsidian widget launches the assistant through this Termux script:
+
+```bash
+#!/data/data/com.termux/files/usr/bin/bash
+exec /data/data/com.termux/files/usr/bin/bash \
+  "$HOME/offline-assistant/run-assistant" \
+  --record --language es --platform android \
+  --needle-bin models/needle/needle --seconds 5 \
+  --execute
+```
+
+It records a five-second Spanish command and executes validated actions on the
+Android device. The launcher resolves the relative Needle path from the repository
+directory. Changes to voice commands should account for this existing shortcut.
+
 ## Coding Style & Naming Conventions
 
 Use four-space indentation, type hints for public functions, and short docstrings
