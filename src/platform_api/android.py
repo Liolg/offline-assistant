@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
 
-from platform_api.base import Platform, validate_recording_seconds
+from platform_api.base import Contact, Platform, validate_recording_seconds
 
 
 class AndroidPlatform(Platform):
@@ -21,6 +21,30 @@ class AndroidPlatform(Platform):
             check=True,
             timeout=10,
         )
+
+    def list_contacts(self) -> list[Contact]:
+        """Read Termux:API contacts without retaining the full address book."""
+        result = subprocess.run(
+            ["termux-contact-list"], check=True, timeout=15,
+            capture_output=True, text=True,
+        )
+        try:
+            records = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Termux returned invalid contacts JSON") from exc
+        if not isinstance(records, list):
+            raise ValueError("Termux returned an invalid contact list")
+        contacts = []
+        for record in records:
+            if (not isinstance(record, dict) or
+                    not isinstance(record.get("name"), str) or
+                    not isinstance(record.get("number"), str)):
+                raise ValueError("Termux returned an invalid contact")
+            contacts.append(Contact(record["name"], record["number"]))
+        return contacts
+
+    def call_phone(self, number: str) -> None:
+        subprocess.run(["termux-telephony-call", number], check=True, timeout=15)
 
     @staticmethod
     def _microphone(*args: str) -> str:

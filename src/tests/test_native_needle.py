@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from assistant.brain import FLASHLIGHT_SCHEMA, NeedleBrain
+from assistant.brain import TOOL_SCHEMAS, NeedleBrain
 from assistant.native_needle import NativeNeedleClient
 from assistant.tool_calls import ToolCall
 
@@ -24,7 +24,7 @@ def test_native_request_uses_current_schema_and_literal_arguments(monkeypatch, t
         assert not kwargs.get("shell", False)
         schema = Path(args[2])
         schema_paths.append(schema)
-        assert json.loads(schema.read_text()) == [FLASHLIGHT_SCHEMA]
+        assert json.loads(schema.read_text()) == TOOL_SCHEMAS
         return subprocess.CompletedProcess(args, 0, json.dumps({
             "type": "call", "success": True, "confidence": 1.0,
             "function_calls": [{"name": "flashlight", "arguments": {"enabled": True}}],

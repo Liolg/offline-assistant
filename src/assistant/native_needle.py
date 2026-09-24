@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
 
-from assistant.brain import FLASHLIGHT_SCHEMA
+from assistant.brain import TOOL_SCHEMAS
 
 
 class NativeNeedleClient:
@@ -20,7 +20,7 @@ class NativeNeedleClient:
         # Generate from the current schema so a downloaded tools.json cannot drift.
         with TemporaryDirectory(prefix="offline-assistant-") as directory:
             schema = Path(directory) / "tools.json"
-            schema.write_text(json.dumps([FLASHLIGHT_SCHEMA]), encoding="utf-8")
+            schema.write_text(json.dumps(TOOL_SCHEMAS), encoding="utf-8")
             try:
                 result = subprocess.run(
                     [self.executable, "--tools", str(schema), "--prompt", text],

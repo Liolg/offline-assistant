@@ -1,5 +1,14 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Contact:
+    """A named phone number returned by the selected platform."""
+
+    name: str
+    number: str
 
 
 class Platform(ABC):
@@ -12,6 +21,14 @@ class Platform(ABC):
     @abstractmethod
     def record_audio(self, destination: Path, seconds: int) -> None:
         """Write a completed mono, 16-bit, 16 kHz PCM WAV to destination."""
+
+    @abstractmethod
+    def list_contacts(self) -> list[Contact]:
+        """Return contacts with phone numbers; raise if lookup fails."""
+
+    @abstractmethod
+    def call_phone(self, number: str) -> None:
+        """Place a phone call to a previously validated number."""
 
 
 def validate_recording_seconds(seconds: int) -> None:

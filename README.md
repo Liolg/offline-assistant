@@ -2,8 +2,9 @@
 
 Python foundation for an offline Android voice assistant. The default demo uses
 a mocked flashlight without runtime dependencies. An optional Needle 2 adapter
-turns typed commands into validated tool-call proposals. Optional Vosk transcription
-accepts English or Spanish recordings, including microphone capture through Termux.
+turns typed commands into validated flashlight or contact-call proposals. Optional
+Vosk transcription accepts English or Spanish recordings, including microphone
+capture through Termux.
 
 ## Launch without activating the environment
 
@@ -71,10 +72,11 @@ src/
   assistant/voice.py         # Local Vosk WAV transcription, English or Spanish
   assistant/tool_calls.py   # Model-independent structured requests
   assistant/executor.py     # Validation and allowlisted dispatch
-  platform_api/base.py      # Platform contract: flashlight(bool)
+  platform_api/base.py      # Platform contract: flashlight, contacts, phone, recording
   platform_api/desktop.py   # In-memory mock with observable state
-  platform_api/android.py   # Existing Termux torch adapter
+  platform_api/android.py   # Termux torch, contacts, calling, and recording
   tools/system.py           # Validated flashlight tool
+  tools/phone.py            # Exact contact lookup and validated dialing
   tests/                    # pytest tests
 ```
 
@@ -92,9 +94,9 @@ Android 14 phone with Python 3.14.6. The integrated CLI has PC mock coverage;
 verify it on your phone after pulling changes.
 
 The remaining empty modules are placeholders from the original scaffold.
-Vosk transcription feeds the same brain interface. Calls, SMS, and other tools
-are not supported; they require a confirmation and authorization layer before
-being added to the executor.
+Vosk transcription feeds the same brain interface. Contact calls are supported
+only after explicit `--execute` or `--execute-mock`; SMS and other sensitive tools
+are not supported.
 
 ## Typed commands with Needle 2
 
@@ -178,6 +180,41 @@ to a temporary file, and removes it afterward. No manually maintained `tools.jso
 is needed. Inference has a 30-second timeout; Android torch commands have a
 10-second timeout. `--execute-mock` is retained for desktop use and is rejected
 with `--platform android`.
+
+## Call a saved contact
+
+Install the Termux:API app and `termux-api` package as described above. Grant the
+app Contacts and Phone permissions when Android requests them. Save a contact
+named `Mom` on the phone, then preview the typed command:
+
+```sh
+./run-assistant "call mom" --platform android --needle-bin models/needle/needle
+```
+
+The preview prints a `call_contact` proposal without reading contacts or dialing.
+To place the call, add `--execute`:
+
+```sh
+./run-assistant "call mom" --platform android --needle-bin models/needle/needle --execute
+```
+
+For a spoken command, use the same recording flow:
+
+```sh
+./run-assistant --record --language en --platform android \
+  --needle-bin models/needle/needle --execute
+```
+
+The assistant matches a saved contact name exactly, ignoring capitalization and
+surrounding spaces. It prints the selected contact and number immediately before
+calling. There is no second confirmation prompt: the spoken or typed request plus
+`--execute` authorizes the call. Missing names, ambiguous matches, invalid numbers,
+and commands proposing a call with another action fail without dialing. The
+Termux contact list exposes only one number per contact, so if Mom has several
+numbers, the assistant uses the one Termux returns. You can run
+`termux-contact-list` yourself to check which number that is; its output contains
+your address book, so keep it private. Phone calling requires a working cellular
+call setup and remains to be verified on your device.
 
 Commit source, `pyproject.toml`, and `uv.lock`; virtual environments and downloaded
 models are ignored. Keep future models under `models/` and download them separately

@@ -15,7 +15,9 @@ def test_dispatch(enabled):
 
 
 @pytest.mark.parametrize("call", [
-    ToolCall("call_contact", {"name": "Alice"}),
+    ToolCall("call_contact", {"name": ""}),
+    ToolCall("call_contact", {"name": 42}),
+    ToolCall("call_contact", {"name": "Mom", "number": "123"}),
     ToolCall("__import__", {}),
     ToolCall("flashlight", {}),
     ToolCall("flashlight", {"enabled": True, "extra": 1}),
@@ -34,3 +36,16 @@ def test_device_error_propagates():
     platform.flashlight.side_effect = OSError("unavailable")
     with pytest.raises(OSError, match="unavailable"):
         Executor(platform).execute(ToolCall("flashlight", {"enabled": True}))
+
+
+def test_call_cannot_be_combined_with_another_action():
+    platform = Mock(spec=Platform)
+    executor = Executor(platform)
+    with pytest.raises(ValueError, match="only proposed action"):
+        executor.validate_proposal([
+            ToolCall("flashlight", {"enabled": True}),
+            ToolCall("call_contact", {"name": "Mom"}),
+        ])
+    platform.flashlight.assert_not_called()
+    platform.list_contacts.assert_not_called()
+    platform.call_phone.assert_not_called()

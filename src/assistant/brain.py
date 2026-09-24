@@ -20,6 +20,21 @@ FLASHLIGHT_SCHEMA = {
     },
 }
 
+CALL_CONTACT_SCHEMA = {
+    "name": "call_contact",
+    "description": "Place a phone call to a contact saved on the device.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "The contact's saved name."},
+        },
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+}
+
+TOOL_SCHEMAS = [FLASHLIGHT_SCHEMA, CALL_CONTACT_SCHEMA]
+
 
 class Brain(Protocol):
     def propose(self, text: str) -> list[ToolCall]:
@@ -49,7 +64,7 @@ class NeedleBrain:
         except ImportError as exc:
             raise RuntimeError("Install the needle extra first; see README.md") from exc
         try:
-            return cls(Needle(tools=[FLASHLIGHT_SCHEMA]))
+            return cls(Needle(tools=TOOL_SCHEMAS))
         except Exception as exc:
             raise RuntimeError(
                 "Could not load the cached Needle engine. Run the explicit setup "

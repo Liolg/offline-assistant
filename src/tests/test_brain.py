@@ -59,14 +59,14 @@ def test_loading_uses_schemas_and_forces_offline(monkeypatch):
     import sys
     from types import SimpleNamespace
 
-    from assistant.brain import FLASHLIGHT_SCHEMA
+    from assistant.brain import TOOL_SCHEMAS
 
     client = Mock()
 
     def construct(**kwargs):
         assert os.environ["HF_HUB_OFFLINE"] == "1"
         assert os.environ["NEEDLE_TELEMETRY"] == "0"
-        assert kwargs == {"tools": [FLASHLIGHT_SCHEMA]}
+        assert kwargs == {"tools": TOOL_SCHEMAS}
         return client
 
     monkeypatch.setenv("HF_HUB_OFFLINE", "0")

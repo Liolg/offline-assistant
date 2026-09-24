@@ -45,7 +45,7 @@ def test_entire_proposal_is_validated_before_execution(monkeypatch, capsys):
         main(["turn on flashlight and call Alice", "--execute-mock"], brain=brain)
     assert error.value.code == 1
     assert platform.flashlight_enabled is False
-    assert "Unsupported tool" in capsys.readouterr().err
+    assert "only proposed action" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("execute", [False, True])

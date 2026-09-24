@@ -1,14 +1,16 @@
 from pathlib import Path
 import wave
 
-from platform_api.base import Platform, validate_recording_seconds
+from platform_api.base import Contact, Platform, validate_recording_seconds
 
 
 class DesktopPlatform(Platform):
     """In-memory device mock. Performs no system commands or hardware access."""
 
-    def __init__(self) -> None:
+    def __init__(self, contacts: list[Contact] | None = None) -> None:
         self.flashlight_enabled = False
+        self.contacts = list(contacts or [])
+        self.called_numbers: list[str] = []
 
     def flashlight(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
@@ -21,3 +23,9 @@ class DesktopPlatform(Platform):
         with wave.open(str(destination), "wb") as recording:
             recording.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
             recording.writeframes(bytes(seconds * 16000 * 2))
+
+    def list_contacts(self) -> list[Contact]:
+        return list(self.contacts)
+
+    def call_phone(self, number: str) -> None:
+        self.called_numbers.append(number)

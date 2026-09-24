@@ -20,7 +20,7 @@ def main(
     transcriber: Transcriber | None = None,
 ) -> None:
     """Preview typed tool calls, or explicitly execute them on a chosen platform."""
-    parser = argparse.ArgumentParser(description="Offline typed or recorded flashlight commands")
+    parser = argparse.ArgumentParser(description="Offline typed or recorded device commands")
     parser.add_argument("command", nargs="?", help="A quoted natural-language command")
     audio_input = parser.add_mutually_exclusive_group()
     audio_input.add_argument("--audio", help="Local mono, 16-bit, 16000 Hz PCM WAV recording")
@@ -94,17 +94,17 @@ def main(
                 )
             calls = brain.propose(args.command)
             # Validate the entire proposal before the first possible side effect.
-            for call in calls:
-                executor.validate(call)
+            executor.validate_proposal(calls)
             print(json.dumps([asdict(call) for call in calls]))
             if not calls:
                 print("No supported action proposed.")
             elif args.execute or args.execute_mock:
                 for call in calls:
                     executor.execute(call)
-                    state = "on" if call.arguments["enabled"] else "off"
-                    label = "ANDROID" if args.platform == "android" else "MOCK"
-                    print(f"[{label}] flashlight: {state}")
+                    if call.name == "flashlight":
+                        state = "on" if call.arguments["enabled"] else "off"
+                        label = "ANDROID" if args.platform == "android" else "MOCK"
+                        print(f"[{label}] flashlight: {state}")
             else:
                 print(f"Preview only. Use --execute to execute on {args.platform}.")
         except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
