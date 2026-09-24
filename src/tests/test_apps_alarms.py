@@ -165,6 +165,8 @@ def test_android_uses_literal_commands_for_app_and_alarm(monkeypatch):
     def run(args, **kwargs):
         commands.append(args)
         if args[:3] == ["pm", "list", "packages"]:
+            assert kwargs["stdin"] == subprocess.DEVNULL
+            assert kwargs["capture_output"] is True
             return subprocess.CompletedProcess(args, 0, "package:com.google.android.youtube\n", "")
         return subprocess.CompletedProcess(args, 0, "Starting: Intent", "")
 

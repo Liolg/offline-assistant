@@ -54,7 +54,7 @@ class AndroidPlatform(Platform):
     def installed_packages(self) -> list[str]:
         result = subprocess.run(
             ["pm", "list", "packages", "--user", "0"], check=True, timeout=15,
-            capture_output=True, text=True,
+            stdin=subprocess.DEVNULL, capture_output=True, text=True,
         )
         packages = []
         for line in result.stdout.splitlines():

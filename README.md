@@ -249,7 +249,9 @@ create an optional `apps.json` in the repository directory. For example:
 The launcher reads this file locally; it is ignored by Git. Local aliases override
 the built-in WhatsApp mapping, which is useful for WhatsApp Business. If Android
 allows package listing, `pm list packages` can help find IDs. If package listing
-fails, an alias lets the assistant open that app without listing packages. If a
+fails, an alias lets the assistant open that app without listing packages. The
+adapter closes standard input and captures output for `pm`, avoiding a Termux
+terminal restriction that can make package queries fail. If a
 name matches more than one package, the assistant stops and asks for an alias
 rather than guessing. An unavailable app or an Android launch error also stops
 the command. The Android adapter starts activities for primary user `0` and
