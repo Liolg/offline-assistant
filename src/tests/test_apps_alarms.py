@@ -123,6 +123,37 @@ def test_real_app_name_takes_priority_over_voice_correction(tmp_path):
     assert platform.opened_apps == ["com.example.pita"]
 
 
+def test_close_icon_name_launches_unique_app(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.notes", "com.example.camera"]
+    platform.app_label_map = {
+        "com.example.notes": ("Obsidian",), "com.example.camera": ("Cámara",)
+    }
+    assert open_app(platform, "obsidiana", tmp_path / "missing.json") == "com.example.notes"
+    assert platform.opened_apps == ["com.example.notes"]
+
+
+def test_fuzzy_app_match_requires_clear_lead(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.camas", "com.example.camao"]
+    platform.app_label_map = {
+        "com.example.camas": ("Camas",), "com.example.camao": ("Camao",)
+    }
+    with pytest.raises(ValueError, match="Closest icon names: Camao, Camas"):
+        open_app(platform, "cama", tmp_path / "missing.json")
+    assert platform.opened_apps == []
+
+
+def test_fuzzy_app_match_rejects_short_or_distant_names(tmp_path):
+    platform = DesktopPlatform()
+    platform.packages = ["com.example.camera"]
+    platform.app_label_map = {"com.example.camera": ("Cámara",)}
+    for name in ("cam", "table"):
+        with pytest.raises(ValueError, match="App not found"):
+            open_app(platform, name, tmp_path / "missing.json")
+    assert platform.opened_apps == []
+
+
 def test_duplicate_icon_labels_do_not_launch(tmp_path):
     platform = DesktopPlatform()
     platform.packages = ["com.example.one", "com.example.two"]
